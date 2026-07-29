@@ -1,0 +1,234 @@
+树莓派迁移准备说明
+====================
+
+当前状态
+--------
+这份准备不改动现有 Windows 上的无人机项目逻辑，只新增 raspberry_pi 文件夹。
+
+已经提前准备好的文件：
+1. raspberry_pi/setup_rpi.sh
+   树莓派第一次安装环境用。
+
+2. raspberry_pi/start_backend.sh
+   树莓派上启动后端用。
+
+3. raspberry_pi/check_rpi.sh
+   检查树莓派环境、依赖、无人机 IP 是否能 ping 通。
+
+4. raspberry_pi/requirements-rpi.txt
+   树莓派专用 Python 依赖。
+
+5. raspberry_pi/pyhulax-dashboard.service.example
+   后续做开机自启动用的 systemd 模板。
+
+6. raspberry_pi/copy_to_rpi_from_windows.ps1
+   Windows 电脑把项目复制到树莓派的参考脚本。
+
+
+最终目标结构
+------------
+树莓派负责：
+- 运行 Flask 后端
+- 提供 Vue 网页
+- 连接无人机 WiFi 并发送飞行指令
+- 保存无人机照片
+- 运行路面裂缝识别
+- 后续接气象站、水位、LD06 数据
+
+用户电脑或手机负责：
+- 打开网页
+- 查看数据
+- 点击按钮执行任务
+
+
+最重要的网络问题
+----------------
+无人机控制必须由“连接无人机 WiFi 的设备”来执行。
+
+如果最终由树莓派控制无人机，那么树莓派必须连无人机 WiFi。
+
+但树莓派只有一个内置 WiFi。如果它连了无人机 WiFi，用户电脑可能就不能通过普通路由器访问树莓派网页。
+
+推荐最终方案：
+方案 A：树莓派内置 WiFi 连无人机，树莓派网线口连路由器。
+方案 B：树莓派内置 WiFi 连无人机，再插一个 USB WiFi 网卡连现场路由器或开热点。
+
+如果只有一个 WiFi，也可以测试，但操作会麻烦：
+- 用户电脑也连无人机 WiFi
+- 电脑访问树莓派在无人机网段里的 IP
+- 这个方案现场演示不如双网络稳定
+
+
+第一阶段：从 Windows 复制项目到树莓派
+-------------------------------------
+前提：
+- 树莓派已经开机
+- 树莓派和 Windows 电脑在同一个局域网
+- Windows 可以 SSH 到树莓派
+
+假设树莓派信息是：
+用户名：afan
+IP：192.168.144.182
+目标目录：/home/afan/pyhulax-main
+
+Windows PowerShell 执行：
+
+cd C:\Users\61700\Desktop\pyhulax-main
+powershell -ExecutionPolicy Bypass -File .\raspberry_pi\copy_to_rpi_from_windows.ps1 -PiUser afan -PiIp 192.168.144.182
+
+如果 IP 变了，把 192.168.144.182 换成树莓派当前 IP。
+
+
+第二阶段：树莓派安装环境
+------------------------
+SSH 登录树莓派：
+
+ssh afan@192.168.144.182
+
+进入项目：
+
+cd ~/pyhulax-main
+
+运行安装脚本：
+
+bash raspberry_pi/setup_rpi.sh
+
+安装完成后检查：
+
+bash raspberry_pi/check_rpi.sh
+
+
+第三阶段：树莓派启动后端
+------------------------
+在树莓派上：
+
+cd ~/pyhulax-main
+bash raspberry_pi/start_backend.sh
+
+看到类似下面内容，说明后端启动：
+
+Running on http://127.0.0.1:5055
+Running on http://树莓派IP:5055
+
+说明：
+Windows 本机直接运行 drone_mission_service.py 时默认只监听 127.0.0.1。
+树莓派脚本 start_backend.sh 会自动设置 PYHULAX_HOST=0.0.0.0，
+这样用户电脑才能访问 http://树莓派IP:5055/。
+
+用户电脑浏览器打开：
+
+http://树莓派IP:5055/
+
+例如：
+
+http://192.168.144.182:5055/
+
+
+第四阶段：树莓派连接无人机 WiFi 测试
+------------------------------------
+树莓派连接无人机 WiFi 后，先不要飞，先检查连接：
+
+cd ~/pyhulax-main
+source .venv/bin/activate
+python drone_step1_check.py
+
+或者：
+
+bash raspberry_pi/check_rpi.sh
+
+如果能看到：
+
+Step 1 passed
+
+说明树莓派已经能控制无人机。
+
+
+第五阶段：网页功能测试顺序
+--------------------------
+建议按这个顺序测，不要一上来就飞：
+
+1. 打开网页
+   http://树莓派IP:5055/
+
+2. 点击“刷新任务状态”
+   看后端是否有响应。
+
+3. 点击“开启相机”
+   看实时视频流是否出来。
+
+4. 点击“拍照保存”
+   看 media/photos 是否出现照片。
+
+5. 点击“分析最近照片”
+   看 media/crack_results 是否出现裂缝标注图和 result.csv。
+
+6. 再做无人机低风险飞行测试：
+   先做连接检查，再做实时高度测试，再做 D0 测试。
+
+
+裂缝识别在树莓派上的注意点
+--------------------------
+当前裂缝识别是：
+
+拍照保存 -> 分析最近照片 -> 生成红色标注图 -> 输出 result.csv
+
+它不是每一帧实时识别。
+
+这是故意这样做的，因为树莓派性能有限，拍照后分析更稳。
+
+结果目录：
+
+~/pyhulax-main/media/crack_results
+
+照片目录：
+
+~/pyhulax-main/media/photos
+
+
+开机自启动，后续再做
+--------------------
+现在先不要直接启用自启动。
+
+等手动运行全部测试通过后，再使用：
+
+raspberry_pi/pyhulax-dashboard.service.example
+
+做 systemd 服务。
+
+大致流程是：
+
+sudo cp raspberry_pi/pyhulax-dashboard.service.example /etc/systemd/system/pyhulax-dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl enable pyhulax-dashboard
+sudo systemctl start pyhulax-dashboard
+sudo systemctl status pyhulax-dashboard
+
+注意：
+模板里的 User=afan 和 WorkingDirectory=/home/afan/pyhulax-main 要按实际用户名和路径确认。
+
+
+现在还没做、迁移时要确认的事
+----------------------------
+1. 树莓派最终如何同时连接无人机和用户网页网络。
+2. 气象站、水位、LD06 是通过 USB、串口、GPIO、还是 MQTT 接入树莓派。
+3. 树莓派运行裂缝识别速度是否够用。
+4. 无人机视频流和飞行任务是否能在树莓派上同时稳定运行。
+5. 是否需要开机自动启动后端。
+
+
+一句话操作流程
+--------------
+复制项目到树莓派：
+Windows 执行 copy_to_rpi_from_windows.ps1
+
+安装环境：
+树莓派执行 bash raspberry_pi/setup_rpi.sh
+
+启动服务：
+树莓派执行 bash raspberry_pi/start_backend.sh
+
+打开网页：
+用户电脑访问 http://树莓派IP:5055/
+
+连接无人机：
+树莓派连无人机 WiFi 后，先运行 python drone_step1_check.py

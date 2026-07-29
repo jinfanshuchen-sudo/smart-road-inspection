@@ -1,0 +1,2469 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>智慧路灯控制面板</title>
+  <script src="vendor/vue.global.prod.js"></script>
+  <script src="vendor/mqtt.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-soft: #eef3f8;
+      --line: #d8e0ea;
+      --text: #1f2937;
+      --muted: #607086;
+      --green: #1f9d55;
+      --yellow: #c98200;
+      --orange: #d85f00;
+      --red: #d92d20;
+      --blue: #1f75cb;
+      --cyan: #008a9a;
+      --purple: #7446d8;
+      --shadow: 0 12px 30px rgba(25, 42, 70, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+      line-height: 1.45;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      min-height: 38px;
+      padding: 0 14px;
+      cursor: pointer;
+      transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+    }
+
+    button:hover {
+      border-color: #9fb0c7;
+      background: #f8fbff;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button.primary {
+      background: #18324f;
+      border-color: #18324f;
+      color: #ffffff;
+    }
+
+    button.danger {
+      color: var(--red);
+      border-color: rgba(217, 45, 32, 0.45);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    input,
+    select {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--text);
+      padding: 0 10px;
+    }
+
+    [v-cloak] {
+      display: none;
+    }
+
+    .app-shell {
+      max-width: 1540px;
+      margin: 0 auto;
+      padding: 22px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .title-block {
+      grid-column: 2;
+      text-align: center;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .title-block p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      padding: 0 12px;
+      color: var(--muted);
+      white-space: nowrap;
+      grid-column: 3;
+      justify-self: end;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #9aa6b2;
+    }
+
+    .dot.connected {
+      background: var(--green);
+    }
+
+    .dot.connecting {
+      background: var(--yellow);
+    }
+
+    .dot.error {
+      background: var(--red);
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .connection-panel {
+      display: grid;
+      grid-template-columns: minmax(240px, 2fr) minmax(160px, 1fr) minmax(160px, 1fr) auto auto;
+      gap: 12px;
+      align-items: end;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+
+    .field label,
+    .control-group label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .site-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .site-panel,
+    .global-weather {
+      padding: 16px;
+    }
+
+    .site-head,
+    .section-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 14px;
+      position: relative;
+      text-align: center;
+    }
+
+    .site-title,
+    .section-title {
+      display: grid;
+      gap: 3px;
+      justify-items: center;
+    }
+
+    .site-head > .level,
+    .section-head > .level {
+      position: absolute;
+      top: 0;
+      right: 0;
+    }
+
+    .site-title span,
+    .section-title span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .site-title strong,
+    .section-title strong {
+      font-size: 20px;
+    }
+
+    .site-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .site-idle {
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 15px;
+      min-height: 176px;
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .card.idle {
+      background: #fbfcfe;
+      color: #718096;
+    }
+
+    .card.idle strong {
+      color: #526274;
+    }
+
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-top: 1px solid #edf1f6;
+      padding: 9px 0;
+      font-size: 14px;
+    }
+
+    .metric:first-of-type {
+      border-top: 0;
+    }
+
+    .metric span:first-child {
+      color: var(--muted);
+      flex: 0 0 auto;
+    }
+
+    .metric strong {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .level {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 86px;
+      min-height: 30px;
+      border-radius: 6px;
+      padding: 0 10px;
+      background: var(--panel-soft);
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .level.safe {
+      background: rgba(31, 157, 85, 0.12);
+      color: var(--green);
+    }
+
+    .level.caution {
+      background: rgba(201, 130, 0, 0.14);
+      color: var(--yellow);
+    }
+
+    .level.warning {
+      background: rgba(216, 95, 0, 0.14);
+      color: var(--orange);
+    }
+
+    .level.danger {
+      background: rgba(217, 45, 32, 0.13);
+      color: var(--red);
+    }
+
+    .level.fault {
+      background: rgba(116, 70, 216, 0.13);
+      color: var(--purple);
+    }
+
+    .water-bar {
+      width: 100%;
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #dfe7f2;
+      margin: 10px 0 2px;
+    }
+
+    .water-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--blue);
+      transition: width 160ms ease;
+    }
+
+    .weather-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(100px, 1fr));
+      gap: 10px;
+      margin-top: 0;
+    }
+
+    .weather-cell {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 12px;
+      min-height: 76px;
+    }
+
+    .weather-cell span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .weather-cell strong {
+      font-size: 18px;
+    }
+
+    .switch-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 14px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(280px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .control-card {
+      padding: 15px;
+    }
+
+    .control-card h2,
+    .log-panel h2 {
+      text-align: center;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .drone-video-card {
+      grid-column: 1 / -1;
+    }
+
+    .drone-video {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      aspect-ratio: 16 / 8.5;
+      margin: 12px 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #111827;
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+
+    .drone-video img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      background: #000000;
+    }
+
+    .photo-link {
+      color: var(--blue);
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .photo-link:hover {
+      text-decoration: underline;
+    }
+
+    .photo-list {
+      display: grid;
+      gap: 6px;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      text-align: left;
+    }
+
+    .photo-list li {
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .crack-preview {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      min-height: 220px;
+      margin-top: 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .crack-preview img {
+      width: 100%;
+      max-height: 420px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .crack-toast {
+      position: fixed;
+      top: 84px;
+      right: 24px;
+      z-index: 100;
+      width: min(340px, calc(100vw - 28px));
+      padding: 14px;
+      border: 1px solid #f2b8b5;
+      border-left: 4px solid #d92d20;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 14px 32px rgba(35, 48, 68, 0.2);
+      animation: toast-in 180ms ease-out;
+    }
+
+    .crack-toast-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: #9d1f18;
+      font-weight: 700;
+    }
+
+    .crack-toast-close {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #617089;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .crack-toast-close:hover {
+      background: #f2f4f7;
+    }
+
+    .crack-toast p {
+      margin: 8px 0 12px;
+      color: #42526b;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .crack-toast-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .crack-toast-actions button {
+      min-height: 32px;
+      padding: 6px 12px;
+      border: 0;
+      border-radius: 4px;
+      background: #1d62d1;
+      color: #ffffff;
+      cursor: pointer;
+    }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(80px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .mini-grid.two {
+      grid-template-columns: repeat(2, minmax(100px, 1fr));
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-top: 1px solid #edf1f6;
+      padding: 11px 0;
+    }
+
+    .toggle-row:first-of-type {
+      border-top: 0;
+    }
+
+    .toggle-row input {
+      width: 44px;
+      min-height: 24px;
+      accent-color: #18324f;
+      cursor: pointer;
+    }
+
+    .bottom-panels {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.15fr);
+      gap: 14px;
+      margin-top: 14px;
+      align-items: start;
+    }
+
+    .response-card pre {
+      max-height: 340px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    .log-panel {
+      padding: 15px;
+    }
+
+    .log-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .log-head h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .log-list {
+      display: grid;
+      gap: 10px;
+      max-height: 340px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .log-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 10px;
+    }
+
+    .log-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #243041;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .empty {
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .error-box {
+      border: 1px solid rgba(217, 45, 32, 0.4);
+      background: rgba(217, 45, 32, 0.06);
+      color: var(--red);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 1100px) {
+      .grid,
+      .site-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .site-layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .connection-panel,
+      .controls,
+      .bottom-panels {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .weather-grid {
+        grid-template-columns: repeat(4, minmax(100px, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .app-shell {
+        padding: 14px;
+      }
+
+      .topbar,
+      .connection-panel,
+      .grid,
+      .site-layout,
+      .site-grid,
+      .controls,
+      .bottom-panels,
+      .weather-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="app-shell" v-cloak>
+    <aside v-if="crackToast.visible" class="crack-toast" role="alert" aria-live="assertive">
+      <div class="crack-toast-head">
+        <span>警告⚠️：已检测到路面裂缝！</span>
+        <button class="crack-toast-close" type="button" title="关闭裂缝报告" @click="closeCrackToast">&times;</button>
+      </div>
+      <p>
+        {{ crackToast.message || `${crackToast.result?.step_index != null ? `第 ${crackToast.result.step_index} 段` : "当前画面"} 检测到裂缝，估算宽度 ${crackToast.result?.width_cm != null ? `${crackToast.result.width_cm} cm` : "待确认"}。` }}
+      </p>
+      <div class="crack-toast-actions">
+        <button type="button" @click="openCrackReport">查看报告</button>
+      </div>
+    </aside>
+
+    <header class="topbar">
+      <div class="title-block">
+        <h1>灯塔总监测站</h1>
+        <p>{{ deviceId }} · MQTT WebSocket · 气象站 / 人车接近 / 积水检查</p>
+      </div>
+      <div class="status-pill">
+        <span class="dot" :class="{ connected, connecting, error: !!errorMessage }"></span>
+        <span>{{ connectionLabel }}</span>
+      </div>
+    </header>
+
+    <div v-if="errorMessage" class="error-box">{{ errorMessage }}</div>
+
+    <section class="panel connection-panel">
+      <div class="field">
+        <label>Broker WebSocket</label>
+        <input v-model.trim="brokerUrl" :disabled="connected || connecting">
+      </div>
+      <div class="field">
+        <label>设备 ID</label>
+        <input v-model.trim="deviceId" :disabled="connected || connecting">
+      </div>
+      <div class="field">
+        <label>上报间隔 ms</label>
+        <input type="number" min="500" max="60000" step="500" v-model.number="uploadIntervalMs">
+      </div>
+      <button class="primary" @click="connect" :disabled="connected || connecting">连接</button>
+      <button class="danger" @click="disconnect" :disabled="!connected && !connecting">断开</button>
+    </section>
+
+    <section class="panel global-weather">
+      <div class="section-head">
+        <div class="section-title">
+          <span>全局共享模块</span>
+          <strong>气象站</strong>
+        </div>
+        <span class="level" :class="weatherStatusClass">{{ weatherStatusLabel }}</span>
+      </div>
+      <div class="weather-grid">
+        <div class="weather-cell" v-for="item in visibleWeatherItems" :key="item.key">
+          <span>{{ item.label }}</span>
+          <strong>{{ weatherText(item.key) }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <main class="site-layout">
+      <section class="panel site-panel">
+        <div class="site-head">
+          <div class="site-title">
+            <span>当前实测设备</span>
+            <strong>灯塔总监测站</strong>
+          </div>
+          <span class="level" :class="levelClass(finalLevel)">{{ finalLevel }}</span>
+        </div>
+
+        <div class="site-grid">
+          <section class="card">
+            <h2>综合告警</h2>
+            <div class="metric">
+              <span>最终等级</span>
+              <strong><span class="level" :class="levelClass(finalLevel)">{{ finalLevel }}</span></strong>
+            </div>
+            <div class="metric">
+              <span>来源</span>
+              <strong>{{ alarmSources }}</strong>
+            </div>
+            <div class="metric">
+              <span>灯光模式</span>
+              <strong>{{ telemetry?.alarm?.pattern || "-" }}</strong>
+            </div>
+            <div class="metric">
+              <span>最近更新</span>
+              <strong>{{ lastTelemetryTime || "-" }}</strong>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>人车接近</h2>
+            <div class="metric">
+              <span>启用</span>
+              <strong>{{ boolText(telemetry?.ld06?.enabled) }}</strong>
+            </div>
+            <div class="metric">
+              <span>在线</span>
+              <strong>{{ boolText(telemetry?.ld06?.online) }}</strong>
+            </div>
+            <div class="metric">
+              <span>最近距离</span>
+              <strong>{{ distanceText(telemetry?.ld06?.nearestDistanceMm) }}</strong>
+            </div>
+            <div class="metric">
+              <span>等级</span>
+              <strong><span class="level" :class="levelClass(telemetry?.ld06?.level)">{{ telemetry?.ld06?.level || "-" }}</span></strong>
+            </div>
+            <div class="metric">
+              <span>CRC 正确 / 错误</span>
+              <strong>{{ telemetry?.ld06?.crcOk ?? "-" }} / {{ telemetry?.ld06?.crcErr ?? "-" }}</strong>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>积水检查</h2>
+            <div class="metric">
+              <span>启用</span>
+              <strong>{{ boolText(telemetry?.water?.enabled) }}</strong>
+            </div>
+            <div class="metric">
+              <span>ADC</span>
+              <strong>{{ telemetry?.water?.adc ?? "-" }}</strong>
+            </div>
+            <div class="metric">
+              <span>估算浸水</span>
+              <strong>{{ percentText(telemetry?.water?.percent) }}</strong>
+            </div>
+            <div class="water-bar">
+              <div class="water-fill" :style="{ width: waterPercentWidth }"></div>
+            </div>
+            <div class="metric">
+              <span>等级</span>
+              <strong><span class="level" :class="levelClass(telemetry?.water?.level)">{{ telemetry?.water?.level || "-" }}</span></strong>
+            </div>
+            <div class="metric">
+              <span>已标定</span>
+              <strong>{{ boolText(telemetry?.water?.calibrated) }}</strong>
+            </div>
+            <div class="metric">
+              <span>dry / wet</span>
+              <strong>{{ telemetry?.water?.dryAdc ?? "-" }} / {{ telemetry?.water?.wetAdc ?? "-" }}</strong>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>网络状态</h2>
+            <div class="metric">
+              <span>Wi-Fi RSSI</span>
+              <strong>{{ rssiText }}</strong>
+            </div>
+            <div class="metric">
+              <span>运行时间</span>
+              <strong>{{ uptimeText }}</strong>
+            </div>
+            <div class="metric">
+              <span>遥测主题</span>
+              <strong>{{ telemetryTopic }}</strong>
+            </div>
+            <div class="metric">
+              <span>命令主题</span>
+              <strong>{{ commandTopic }}</strong>
+            </div>
+          </section>
+        </div>
+      </section>
+
+    </main>
+
+    <section class="controls">
+      <div class="panel control-card">
+        <h2>积水调校</h2>
+        <div class="mini-grid">
+          <div class="field">
+            <label>注意 %</label>
+            <input type="number" min="0" max="100" step="1" v-model.number="waterThresholds.caution" @input="markWaterTuningDirty">
+          </div>
+          <div class="field">
+            <label>较深 %</label>
+            <input type="number" min="0" max="100" step="1" v-model.number="waterThresholds.warning" @input="markWaterTuningDirty">
+          </div>
+          <div class="field">
+            <label>危险 %</label>
+            <input type="number" min="0" max="100" step="1" v-model.number="waterThresholds.danger" @input="markWaterTuningDirty">
+          </div>
+        </div>
+        <div class="button-row">
+          <button @click="applyWaterThresholds" :disabled="!connected">设置积水档位</button>
+          <button @click="reloadWaterTuningFromDevice">读取当前值</button>
+        </div>
+        <div class="mini-grid two" style="margin-top: 12px;">
+          <div class="field">
+            <label>干燥 ADC</label>
+            <input type="number" min="0" max="4095" step="1" v-model.number="waterCalibration.dry" @input="markWaterTuningDirty">
+          </div>
+          <div class="field">
+            <label>全湿 ADC</label>
+            <input type="number" min="0" max="4095" step="1" v-model.number="waterCalibration.wet" @input="markWaterTuningDirty">
+          </div>
+        </div>
+        <div class="button-row">
+          <button @click="applyWaterCalibration" :disabled="!connected">设置 ADC 标定</button>
+          <span style="color: var(--muted); font-size: 13px;">{{ waterTuningDirty ? "编辑中，点击设置后下发" : "本地设定值，不会自动覆盖" }}</span>
+        </div>
+      </div>
+
+      <div class="panel control-card">
+        <h2>无人机任务</h2>
+        <div class="field" style="margin-bottom: 12px;">
+          <label>后端接口</label>
+          <input v-model.trim="droneApiBase">
+        </div>
+        <div class="button-row">
+          <button class="primary" @click="startDroneReturnQrTest" :disabled="droneTask?.running || droneVideo?.running">开始执行总任务</button>
+          <button @click="startDroneVideoTask" :disabled="droneTask?.running || droneVideo?.running">实时高度测试</button>
+          <button @click="startDroneD0DistanceTest" :disabled="droneTask?.running || droneVideo?.running">D0识别距离测试</button>
+          <button @click="startDroneDownwardD0Test" :disabled="droneTask?.running || droneVideo?.running">下视D0对准降落测试</button>
+          <button @click="startDronePhotoTask" :disabled="droneTask?.running || droneVideo?.running">巡航裂缝识别</button>
+          <button class="danger" @click="emergencyLandDrone">紧急降落</button>
+          <button @click="refreshDroneTaskStatus">刷新任务状态</button>
+        </div>
+        <div class="metric">
+          <span>任务状态</span>
+          <strong><span class="level" :class="droneTaskLevelClass">{{ droneTaskLabel }}</span></strong>
+        </div>
+        <div class="metric">
+          <span>当前阶段</span>
+          <strong>{{ droneTask?.message || "-" }}</strong>
+        </div>
+        <div class="metric">
+          <span>电量</span>
+          <strong>{{ droneTask?.battery != null ? `${droneTask.battery}%` : "-" }}</strong>
+        </div>
+        <div class="metric">
+          <span>下方 ToF 距离</span>
+          <strong>{{ droneTask?.altitude_cm != null ? `${droneTask.altitude_cm.toFixed(1)} cm` : "-" }}</strong>
+        </div>
+        <div class="metric">
+          <span>三维坐标参考</span>
+          <strong>起飞前位置为 (0, 0, 0)</strong>
+        </div>
+        <div class="metric">
+          <span>坐标 X（右为正）</span>
+          <strong>{{ dronePositionText("x") }}</strong>
+        </div>
+        <div class="metric">
+          <span>坐标 Y（起飞时摄像头前方为正）</span>
+          <strong>{{ dronePositionText("y") }}</strong>
+        </div>
+        <div class="metric">
+          <span>坐标 Z（上为正）</span>
+          <strong>{{ dronePositionText("z") }}</strong>
+        </div>
+        <div class="metric">
+          <span>无人机偏移角</span>
+          <strong>{{ droneOrientationText }}</strong>
+        </div>
+        <div class="metric">
+          <span>姿态状态</span>
+          <strong><span class="level" :class="droneAttitudeLevelClass">{{ droneAttitudeLabel }}</span></strong>
+        </div>
+        <div class="metric">
+          <span>{{ droneLandingMarkerLabel }}</span>
+          <strong>{{ droneTaskD0Result?.success === true ? "成功" : (droneTaskD0Result ? "未识别" : "-") }}</strong>
+        </div>
+        <div class="metric">
+          <span>7号返航码</span>
+          <strong>{{ droneTaskReturnQrResult?.success === true ? "成功" : (droneTaskReturnQrResult ? "未识别" : "-") }}</strong>
+        </div>
+        <div class="metric" v-if="droneTaskReturnQrResult?.position">
+          <span>7号码位置</span>
+          <strong>{{ returnQrPositionText }}</strong>
+        </div>
+        <div class="metric" v-if="droneTaskD0Result?.position">
+          <span>{{ droneLandingMarkerLabel }}当前偏移</span>
+          <strong>{{ d0CurrentPositionText }}</strong>
+        </div>
+        <div class="metric" v-if="droneTaskD0Result?.target_error">
+          <span>{{ droneLandingMarkerLabel }}目标误差</span>
+          <strong>{{ d0TargetErrorText }}</strong>
+        </div>
+      </div>
+
+      <div class="panel control-card drone-video-card">
+        <h2>无人机实时视频流</h2>
+        <div class="drone-video">
+          <img v-if="droneVideo?.running" :src="droneVideoFeedSrc" alt="无人机实时视频流">
+          <span v-else>未开启相机预览</span>
+        </div>
+        <div class="button-row">
+          <button @click="startDroneVideo" :disabled="droneTask?.running || droneVideo?.running">开启相机</button>
+          <button @click="stopDroneVideo" :disabled="!droneVideo?.running || droneTask?.running">停止相机</button>
+          <button @click="takeDronePhoto" :disabled="!droneVideo?.running || dronePhotoSaving">{{ dronePhotoSaving ? "保存中..." : "拍照保存" }}</button>
+          <button @click="refreshDroneVideoStatus">刷新相机状态</button>
+        </div>
+        <div class="metric">
+          <span>相机状态</span>
+          <strong><span class="level" :class="droneVideoLevelClass">{{ droneVideoLabel }}</span></strong>
+        </div>
+        <div class="metric">
+          <span>视频下方 ToF 距离</span>
+          <strong>{{ droneVideo?.altitude_cm != null ? `${droneVideo.altitude_cm.toFixed(1)} cm` : "-" }}</strong>
+        </div>
+        <div class="metric" v-if="droneVideo?.error">
+          <span>错误信息</span>
+          <strong>{{ droneVideo.error }}</strong>
+        </div>
+        <div class="metric">
+          <span>最近照片</span>
+          <strong>
+            <ul v-if="droneRecentPhotos.length" class="photo-list">
+              <li v-for="photo in droneRecentPhotos" :key="photo.filename">
+                <a class="photo-link" :href="droneApiUrl(photo.url)" target="_blank">{{ photo.path || photo.filename }}</a>
+              </li>
+            </ul>
+            <span v-else>-</span>
+          </strong>
+        </div>
+        <div class="metric" v-if="dronePhotoMessage">
+          <span>保存提示</span>
+          <strong>{{ dronePhotoMessage }}</strong>
+        </div>
+      </div>
+
+      <div id="crack-report" class="panel control-card drone-video-card">
+        <h2>路面裂缝识别报告</h2>
+        <div class="button-row">
+          <button @click="analyzeLatestCrackPhoto" :disabled="crackAnalyzing">{{ crackAnalyzing ? "分析中..." : "分析最近照片" }}</button>
+        </div>
+        <div class="metric">
+          <span>识别状态</span>
+          <strong><span class="level" :class="crackAnalysis?.success ? 'safe' : (crackMessage ? 'danger' : '')">{{ crackAnalysis?.success ? "完成" : (crackMessage || "-") }}</span></strong>
+        </div>
+        <div class="metric">
+          <span>裂缝像素宽度</span>
+          <strong>{{ crackAnalysis?.pixel_width != null ? `${crackAnalysis.pixel_width} px` : "-" }}</strong>
+        </div>
+        <div class="metric">
+          <span>折算物理宽度</span>
+          <strong>{{ crackAnalysis?.width_cm != null ? `${crackAnalysis.width_cm} cm` : "-" }}</strong>
+        </div>
+        <div class="metric">
+          <span>拍摄段数</span>
+          <strong>{{ crackAnalysis?.step_index != null ? `第 ${crackAnalysis.step_index} 段` : "-" }}</strong>
+        </div>
+        <div class="metric">
+          <span>拍摄位置</span>
+          <strong>{{ crackCapturePositionText }}</strong>
+        </div>
+        <div class="metric">
+          <span>拍摄 ToF 高度</span>
+          <strong>{{ crackAnalysis?.capture_altitude_cm != null ? `${Number(crackAnalysis.capture_altitude_cm).toFixed(1)} cm` : "-" }}</strong>
+        </div>
+        <div class="metric">
+          <span>分析照片</span>
+          <strong>{{ crackAnalysis?.input_photo?.path || "-" }}</strong>
+        </div>
+        <div class="metric" v-if="crackAnalysis?.csv_url">
+          <span>结果 CSV</span>
+          <strong><a class="photo-link" :href="droneApiUrl(crackAnalysis.csv_url)" target="_blank">打开 result.csv</a></strong>
+        </div>
+        <div class="crack-preview">
+          <img v-if="crackResultImageSrc" :src="crackResultImageSrc" alt="裂缝识别结果">
+          <span v-else>暂无裂缝识别结果</span>
+        </div>
+      </div>
+
+      <div class="panel control-card">
+        <h2>常用命令</h2>
+        <div class="button-row">
+          <button @click="publishCommand({ cmd: 'ping' })" :disabled="!connected">Ping</button>
+          <button @click="publishCommand({ cmd: 'getStatus' })" :disabled="!connected">刷新状态</button>
+          <button @click="applyUploadInterval" :disabled="!connected">设置上报间隔</button>
+        </div>
+      </div>
+
+      <div class="panel control-card">
+        <h2>功能开关</h2>
+        <div class="toggle-row">
+          <span>人车接近检测</span>
+          <input type="checkbox" v-model="proximityEnabled" @change="setProximityEnabled" :disabled="!connected">
+        </div>
+        <div class="toggle-row">
+          <span>积水检查</span>
+          <input type="checkbox" v-model="waterEnabled" @change="setWaterEnabled" :disabled="!connected">
+        </div>
+        <div class="toggle-row">
+          <span>气象站读取</span>
+          <input type="checkbox" v-model="weatherEnabled" @change="setWeatherEnabled" :disabled="!connected">
+        </div>
+        <div class="switch-grid">
+          <div class="toggle-row" v-for="item in weatherPlaceholders" :key="item.key">
+            <span>{{ item.label }}</span>
+            <input type="checkbox" v-model="weatherVisible[item.key]">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bottom-panels">
+      <div class="panel control-card response-card">
+        <h2>最近应答</h2>
+        <pre>{{ latestStatusText }}</pre>
+      </div>
+
+      <div class="panel log-panel">
+        <div class="log-head">
+          <h2>消息记录</h2>
+          <button @click="logs = []">清空</button>
+        </div>
+        <div v-if="logs.length === 0" class="empty">等待 MQTT 消息</div>
+        <div v-else class="log-list">
+          <div class="log-item" v-for="entry in logs" :key="entry.id">
+            <div class="log-meta">
+              <span>{{ entry.time }}</span>
+              <span>{{ entry.topic }}</span>
+            </div>
+            <pre>{{ entry.payload }}</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const mount = document.getElementById("app");
+      if (!window.Vue || !window.mqtt) {
+        mount.removeAttribute("v-cloak");
+        mount.innerHTML = '<div class="error-box">Vue 或 MQTT.js 没有加载成功，请确认电脑可以访问 CDN 网络。</div>';
+        return;
+      }
+
+      const { createApp } = Vue;
+
+      createApp({
+        data() {
+          return {
+            brokerUrl: "ws://127.0.0.1:9001",
+            deviceId: "road-warning-001",
+            connected: false,
+            connecting: false,
+            errorMessage: "",
+            client: null,
+            telemetry: null,
+            latestStatus: null,
+            lastTelemetryTime: "",
+            uploadIntervalMs: 1000,
+            proximityEnabled: true,
+            waterEnabled: true,
+            weatherEnabled: true,
+            droneApiBase: "http://127.0.0.1:5055",
+            droneTask: null,
+            droneTaskPolling: null,
+            droneVideo: null,
+            droneVideoPolling: null,
+            droneVideoNonce: 0,
+            dronePhotoSaving: false,
+            dronePhotoMessage: "",
+            crackAnalysis: null,
+            crackAnalyzing: false,
+            crackMessage: "",
+            crackImageNonce: 0,
+            crackToast: {
+              visible: false,
+              result: null,
+              message: ""
+            },
+            lastCrackToastKey: "",
+            outboundCrackAlertKey: "",
+            crackToastShownForFlight: false,
+            crackToastTimer: null,
+            waterThresholds: {
+              caution: 18,
+              warning: 35,
+              danger: 65
+            },
+            waterCalibration: {
+              dry: 50,
+              wet: 520
+            },
+            waterTuningDirty: false,
+            waterTuningReadRequested: false,
+            logs: [],
+            logCounter: 0,
+            weatherPlaceholders: [
+              { key: "windSpeed", label: "风速" },
+              { key: "windDirection", label: "风向" },
+              { key: "rainfall", label: "雨量" },
+              { key: "illuminance", label: "光照" },
+              { key: "temperature", label: "温度" },
+              { key: "humidity", label: "湿度" },
+              { key: "pressure", label: "气压" }
+            ],
+            weatherVisible: {
+              windSpeed: true,
+              windDirection: true,
+              rainfall: true,
+              illuminance: true,
+              temperature: true,
+              humidity: true,
+              pressure: true
+            }
+          };
+        },
+        computed: {
+          telemetryTopic() {
+            return `road-warning/${this.deviceId}/telemetry`;
+          },
+          statusTopic() {
+            return `road-warning/${this.deviceId}/status`;
+          },
+          commandTopic() {
+            return `road-warning/${this.deviceId}/cmd`;
+          },
+          connectionLabel() {
+            if (this.connected) return "已连接";
+            if (this.connecting) return "连接中";
+            if (this.errorMessage) return "连接异常";
+            return "未连接";
+          },
+          finalLevel() {
+            return this.telemetry?.alarm?.finalLevel || "-";
+          },
+          alarmSources() {
+            return this.telemetry?.alarm?.sources || "-";
+          },
+          waterPercentWidth() {
+            const value = Number(this.telemetry?.water?.percent ?? 0);
+            return `${Math.max(0, Math.min(100, value)).toFixed(0)}%`;
+          },
+          rssiText() {
+            const rssi = this.telemetry?.wifiRssi;
+            return typeof rssi === "number" ? `${rssi} dBm` : "-";
+          },
+          uptimeText() {
+            return this.uptimeTextFrom(this.telemetry?.uptimeMs);
+          },
+          latestStatusText() {
+            return this.latestStatus ? JSON.stringify(this.latestStatus, null, 2) : "-";
+          },
+          droneTaskLabel() {
+            if (!this.droneTask) return "not connected";
+            if (this.droneTask.running) return "running";
+            if (this.droneTask.success === true) return "completed";
+            if (this.droneTask.success === false) return "failed";
+            return this.droneTask.phase || "idle";
+          },
+          droneTaskLevelClass() {
+            if (!this.droneTask) return "";
+            if (this.droneTask.running) return "caution";
+            if (this.droneTask.success === true) return "safe";
+            if (this.droneTask.success === false) return "danger";
+            return "";
+          },
+          dronePosition() {
+            if (this.droneTask?.running && this.droneTask?.position_xyz) {
+              return this.droneTask.position_xyz;
+            }
+            if (this.droneVideo?.running && this.droneVideo?.position_xyz) {
+              return this.droneVideo.position_xyz;
+            }
+            return this.droneTask?.position_xyz || this.droneVideo?.position_xyz || null;
+          },
+          droneOrientation() {
+            if (this.droneTask?.running && this.droneTask?.orientation) {
+              return this.droneTask.orientation;
+            }
+            if (this.droneVideo?.running && this.droneVideo?.orientation) {
+              return this.droneVideo.orientation;
+            }
+            return this.droneTask?.orientation || this.droneVideo?.orientation || null;
+          },
+          droneOrientationText() {
+            const orientation = this.droneOrientation;
+            if (!orientation) return "-";
+            const yaw = Number(orientation.yaw).toFixed(1);
+            const pitch = Number(orientation.pitch).toFixed(1);
+            const roll = Number(orientation.roll).toFixed(1);
+            return `Yaw ${yaw}° / Pitch ${pitch}° / Roll ${roll}°`;
+          },
+          droneAttitudeLabel() {
+            const orientation = this.droneOrientation;
+            if (!orientation) return "-";
+            const pitch = Math.abs(Number(orientation.pitch));
+            const roll = Math.abs(Number(orientation.roll));
+            const tilt = Math.max(pitch, roll);
+            if (tilt <= 5) return "平稳";
+            if (tilt <= 10) return "轻微偏移";
+            return "偏移较大";
+          },
+          droneAttitudeLevelClass() {
+            const orientation = this.droneOrientation;
+            if (!orientation) return "";
+            const pitch = Math.abs(Number(orientation.pitch));
+            const roll = Math.abs(Number(orientation.roll));
+            const tilt = Math.max(pitch, roll);
+            if (tilt <= 5) return "safe";
+            if (tilt <= 10) return "caution";
+            return "danger";
+          },
+          droneVideoLabel() {
+            if (!this.droneVideo) return "not connected";
+            if (this.droneVideo.running) return "previewing";
+            if (this.droneVideo.error) return "error";
+            return "idle";
+          },
+          droneVideoLevelClass() {
+            if (!this.droneVideo) return "";
+            if (this.droneVideo.running) return "safe";
+            if (this.droneVideo.error) return "danger";
+            return "";
+          },
+          droneVideoFeedSrc() {
+            if (!this.droneVideo?.running || !this.droneVideo.feed_url) return "";
+            return `${this.droneApiUrl(this.droneVideo.feed_url)}?t=${this.droneVideoNonce}`;
+          },
+          droneRecentPhotos() {
+            const photos = Array.isArray(this.droneVideo?.recent_photos)
+              ? this.droneVideo.recent_photos
+              : [];
+            if (photos.length > 0) {
+              return photos.slice(0, 3);
+            }
+            return this.droneVideo?.last_photo ? [this.droneVideo.last_photo] : [];
+          },
+          d0CurrentPositionText() {
+            const position = this.droneTaskD0Result?.position;
+            if (!position) return "-";
+            const x = Number(position.x);
+            const y = Number(position.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return "-";
+            return `X ${x.toFixed(1)} cm / Y ${y.toFixed(1)} cm`;
+          },
+          d0TargetErrorText() {
+            const error = this.droneTaskD0Result?.target_error;
+            if (!error) return "-";
+            const x = Number(error.x);
+            const y = Number(error.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return "-";
+            return `X ${x.toFixed(1)} cm / Y ${y.toFixed(1)} cm`;
+          },
+          returnQrPositionText() {
+            const position = this.droneTaskReturnQrResult?.position;
+            if (!position) return "-";
+            const x = Number(position.x);
+            const y = Number(position.y);
+            const z = Number(position.z);
+            const parts = [];
+            if (Number.isFinite(x)) parts.push(`X ${x.toFixed(1)} cm`);
+            if (Number.isFinite(y)) parts.push(`Y ${y.toFixed(1)} cm`);
+            if (Number.isFinite(z)) parts.push(`Z ${z.toFixed(1)} cm`);
+            return parts.length ? parts.join(" / ") : "-";
+          },
+          droneTaskD0Result() {
+            const result = this.droneTask?.ai_result;
+            if (!result) return null;
+            if (result.landing_qr_result) return result.landing_qr_result;
+            if (result.d0_result) return result.d0_result;
+            if (result.return_qr_result) return null;
+            if (result.target_type != null || result.position || result.target_error) return result;
+            return null;
+          },
+          droneLandingMarkerLabel() {
+            const landingQrId = this.droneTask?.params?.landing_qr_id;
+            if (Number.isInteger(landingQrId)) return `${landingQrId}号降落码`;
+            const landingResult = this.droneTaskD0Result;
+            if (Number.isInteger(landingResult?.landing_qr_id)) return `${landingResult.landing_qr_id}号降落码`;
+            return "D0 识别";
+          },
+          droneTaskReturnQrResult() {
+            const result = this.droneTask?.ai_result;
+            if (!result) return null;
+            if (result.return_qr_result) return result.return_qr_result;
+            if (result.qr_id != null || result.target_qr_id != null) return result;
+            return null;
+          },
+          crackResultImageSrc() {
+            if (!this.crackAnalysis?.output_url) return "";
+            return `${this.droneApiUrl(this.crackAnalysis.output_url)}?t=${this.crackImageNonce}`;
+          },
+          crackCapturePositionText() {
+            const position = this.crackAnalysis?.capture_position || this.crackAnalysis?.capture_metadata?.position_xyz;
+            if (!position) return "-";
+            const x = Number(position.x);
+            const y = Number(position.y);
+            const z = Number(position.z);
+            if (![x, y, z].every(Number.isFinite)) return "-";
+            return `X ${x.toFixed(1)} cm / Y ${y.toFixed(1)} cm / Z ${z.toFixed(1)} cm`;
+          },
+          visibleWeatherItems() {
+            return this.weatherPlaceholders.filter((item) => this.weatherVisible[item.key]);
+          },
+          weatherStatusLabel() {
+            const weather = this.telemetry?.weather;
+            if (weather?.enabled === false || this.weatherEnabled === false) return "未启用";
+            if (weather?.online && weather?.dataValid) return "在线";
+            return "待接入";
+          },
+          weatherStatusClass() {
+            const weather = this.telemetry?.weather;
+            if (weather?.enabled === false || this.weatherEnabled === false) return "";
+            if (weather?.online && weather?.dataValid) return "safe";
+            return "caution";
+          }
+        },
+        methods: {
+          dronePositionText(axis) {
+            const position = this.dronePosition;
+            if (!position || position[axis] == null) return "-";
+            return `${Number(position[axis]).toFixed(1)} cm`;
+          },
+          connect() {
+            this.errorMessage = "";
+            if (this.client) {
+              this.client.end(true);
+              this.client = null;
+            }
+            this.connecting = true;
+            this.connected = false;
+
+            const clientId = `road_warning_panel_${Math.random().toString(16).slice(2, 10)}`;
+            this.client = mqtt.connect(this.brokerUrl, {
+              clientId,
+              clean: true,
+              connectTimeout: 8000,
+              reconnectPeriod: 3000,
+              protocolVersion: 4
+            });
+
+            this.client.on("connect", () => {
+              this.connected = true;
+              this.connecting = false;
+              this.errorMessage = "";
+              const topics = [
+                this.telemetryTopic,
+                this.statusTopic
+              ].filter((topic, index, list) => topic && list.indexOf(topic) === index);
+              this.client.subscribe(topics, { qos: 0 }, (err) => {
+                if (err) this.errorMessage = `订阅失败：${err.message || err}`;
+              });
+              this.publishCommand({ cmd: "getStatus" });
+            });
+
+            this.client.on("reconnect", () => {
+              this.connecting = true;
+            });
+
+            this.client.on("close", () => {
+              this.connected = false;
+              this.connecting = false;
+            });
+
+            this.client.on("error", (err) => {
+              this.errorMessage = err?.message || String(err);
+              this.connecting = false;
+            });
+
+            this.client.on("message", (topic, payload) => {
+              this.handleMessage(topic, payload.toString());
+            });
+          },
+          disconnect(endClient = true) {
+            if (this.client && endClient) {
+              this.client.end(true);
+            }
+            this.client = null;
+            this.connected = false;
+            this.connecting = false;
+          },
+          handleMessage(topic, payload) {
+            let parsed = payload;
+            try {
+              parsed = JSON.parse(payload);
+            } catch (error) {
+              parsed = payload;
+            }
+
+            this.logs.unshift({
+              id: ++this.logCounter,
+              time: new Date().toLocaleTimeString(),
+              topic,
+              payload: typeof parsed === "string" ? parsed : JSON.stringify(parsed, null, 2)
+            });
+            this.logs = this.logs.slice(0, 60);
+
+            if (topic === this.telemetryTopic && typeof parsed === "object") {
+              this.telemetry = parsed;
+              this.lastTelemetryTime = new Date().toLocaleTimeString();
+              if (typeof parsed.ld06?.enabled === "boolean") {
+                this.proximityEnabled = parsed.ld06.enabled;
+              }
+              if (typeof parsed.water?.enabled === "boolean") {
+                this.waterEnabled = parsed.water.enabled;
+              }
+              if (typeof parsed.weather?.enabled === "boolean") {
+                this.weatherEnabled = parsed.weather.enabled;
+              }
+              if (this.waterTuningReadRequested) {
+                this.syncWaterTuning(parsed.water, true);
+              }
+            }
+
+            if (topic === this.statusTopic) {
+              this.latestStatus = parsed;
+              if (typeof parsed?.proximityEnabled === "boolean") {
+                this.proximityEnabled = parsed.proximityEnabled;
+              }
+              if (typeof parsed?.waterEnabled === "boolean") {
+                this.waterEnabled = parsed.waterEnabled;
+              }
+              if (typeof parsed?.weatherEnabled === "boolean") {
+                this.weatherEnabled = parsed.weatherEnabled;
+              }
+              if (typeof parsed?.uploadIntervalMs === "number") {
+                this.uploadIntervalMs = parsed.uploadIntervalMs;
+              }
+              if (parsed?.waterThresholds) {
+                const waterTuningPayload = {
+                  thresholds: parsed.waterThresholds,
+                  dryAdc: parsed.waterDryAdc,
+                  wetAdc: parsed.waterWetAdc
+                };
+                if (parsed.ack === "ok" && (
+                    parsed.cmd === "setWaterThresholds" ||
+                    parsed.cmd === "setWaterCalibration")) {
+                  this.waterTuningDirty = false;
+                }
+                this.syncWaterTuning(waterTuningPayload, this.waterTuningReadRequested);
+              }
+            }
+
+          },
+          markWaterTuningDirty() {
+            this.waterTuningDirty = true;
+          },
+          syncWaterTuning(water, force = false) {
+            if (!water) return;
+            if (!force && !this.waterTuningReadRequested) {
+              return;
+            }
+            if (this.waterTuningDirty) {
+              return;
+            }
+            if (typeof water.dryAdc === "number") {
+              this.waterCalibration.dry = water.dryAdc;
+            }
+            if (typeof water.wetAdc === "number") {
+              this.waterCalibration.wet = water.wetAdc;
+            }
+            if (typeof water.thresholds?.caution === "number") {
+              this.waterThresholds.caution = water.thresholds.caution;
+            }
+            if (typeof water.thresholds?.warning === "number") {
+              this.waterThresholds.warning = water.thresholds.warning;
+            }
+            if (typeof water.thresholds?.danger === "number") {
+              this.waterThresholds.danger = water.thresholds.danger;
+            }
+            this.waterTuningDirty = false;
+            this.waterTuningReadRequested = false;
+          },
+          reloadWaterTuningFromDevice() {
+            this.waterTuningDirty = false;
+            this.waterTuningReadRequested = true;
+            this.syncWaterTuning(this.telemetry?.water, true);
+            if (this.connected) {
+              this.publishCommand({ cmd: "getStatus" });
+            }
+          },
+          droneApiUrl(path) {
+            const base = String(this.droneApiBase || "").replace(/\/$/, "");
+            return `${base}${path}`;
+          },
+          async callDroneApi(path, options = {}) {
+            const response = await fetch(this.droneApiUrl(path), {
+              headers: { "Content-Type": "application/json" },
+              ...options
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok && response.status !== 409) {
+              throw new Error(data.error || data.message || `HTTP ${response.status}`);
+            }
+            return data;
+          },
+          addDroneLog(topic, payload) {
+            this.logs.unshift({
+              id: ++this.logCounter,
+              time: new Date().toLocaleTimeString(),
+              topic,
+              payload: JSON.stringify(payload, null, 2)
+            });
+            this.logs = this.logs.slice(0, 60);
+          },
+          crackResultFromTask() {
+            const result = this.droneTask?.ai_result?.crack_result || this.droneTask?.ai_result;
+            return result && typeof result.detected === "boolean" ? result : null;
+          },
+          showCrackToast(result) {
+            if (!result?.detected || this.crackToastShownForFlight) return;
+            const key = result.output_filename || result.input_filename ||
+              `${result.crack_analysis_count || ""}:${result.step_index || ""}:${result.crack_pixels || ""}`;
+            if (!key || key === this.lastCrackToastKey) return;
+
+            this.lastCrackToastKey = key;
+            this.crackToastShownForFlight = true;
+            this.crackToast = { visible: true, result, message: "" };
+            if (this.crackToastTimer) window.clearTimeout(this.crackToastTimer);
+            this.crackToastTimer = window.setTimeout(() => this.closeCrackToast(), 12000);
+          },
+          closeCrackToast() {
+            if (this.crackToastTimer) window.clearTimeout(this.crackToastTimer);
+            this.crackToastTimer = null;
+            this.crackToast.visible = false;
+          },
+          openCrackReport() {
+            this.closeCrackToast();
+            document.getElementById("crack-report")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          },
+          resetCrackToastForFlight() {
+            this.closeCrackToast();
+            this.lastCrackToastKey = "";
+            this.outboundCrackAlertKey = "";
+            this.crackToastShownForFlight = false;
+          },
+          showOutboundCrackAlert(alert) {
+            if (!alert || alert.task !== "return_qr7_test") return;
+            if (alert.started_at !== this.droneTask?.started_at) return;
+            if (this.crackToastShownForFlight || alert.id === this.outboundCrackAlertKey) return;
+
+            this.outboundCrackAlertKey = alert.id;
+            this.crackToastShownForFlight = true;
+            this.crackToast = {
+              visible: true,
+              result: { step_index: alert.step_index },
+              message: alert.message || "无人机正在继续执行任务。"
+            };
+            if (this.crackToastTimer) window.clearTimeout(this.crackToastTimer);
+            this.crackToastTimer = window.setTimeout(() => this.closeCrackToast(), 12000);
+          },
+          syncCrackAnalysisFromDroneTask() {
+            const result = this.crackResultFromTask();
+            if (!result || !result.output_url || !result.input_photo) return;
+            this.crackAnalysis = result;
+            this.crackImageNonce += 1;
+            this.crackMessage = "";
+            this.showCrackToast(result);
+          },
+          async refreshDroneTaskStatus() {
+            try {
+              this.droneTask = await this.callDroneApi("/api/drone/status");
+              this.showOutboundCrackAlert(this.droneTask?.crack_alert);
+              this.syncCrackAnalysisFromDroneTask();
+            } catch (error) {
+              this.errorMessage = `Drone backend connection failed: ${error.message || error}`;
+            }
+          },
+          startDroneTaskPolling() {
+            if (this.droneTaskPolling) return;
+            this.droneTaskPolling = window.setInterval(async () => {
+              await this.refreshDroneTaskStatus();
+              if (this.droneTask && !this.droneTask.running) {
+                window.clearInterval(this.droneTaskPolling);
+                this.droneTaskPolling = null;
+              }
+            }, 1000);
+          },
+          async startDroneVideoTask() {
+            this.errorMessage = "";
+            this.dronePhotoMessage = "";
+            try {
+              this.droneTask = await this.callDroneApi("/api/drone/start-video-task", { method: "POST" });
+              this.droneVideoNonce += 1;
+              this.addDroneLog("drone/height-test", this.droneTask);
+              this.startDroneTaskPolling();
+              this.startDroneVideoPolling();
+            } catch (error) {
+              this.errorMessage = `Drone height test failed: ${error.message || error}`;
+            }
+          },
+          async startDroneD0DistanceTest() {
+            this.errorMessage = "";
+            this.dronePhotoMessage = "";
+            try {
+              this.droneTask = await this.callDroneApi("/api/drone/start-d0-distance-test", { method: "POST" });
+              this.droneVideoNonce += 1;
+              this.addDroneLog("drone/d0-distance-test", this.droneTask);
+              this.startDroneTaskPolling();
+              this.startDroneVideoPolling();
+            } catch (error) {
+              this.errorMessage = `Drone D0 distance test failed: ${error.message || error}`;
+            }
+          },
+          async startDroneDownwardD0Test() {
+            this.errorMessage = "";
+            this.dronePhotoMessage = "";
+            try {
+              this.droneTask = await this.callDroneApi("/api/drone/start-downward-d0-test", {
+                method: "POST",
+                body: JSON.stringify({})
+              });
+              this.droneVideoNonce += 1;
+              this.addDroneLog("drone/downward-d0-test", this.droneTask);
+              this.startDroneTaskPolling();
+              this.startDroneVideoPolling();
+            } catch (error) {
+              this.errorMessage = `Drone downward D0 test failed: ${error.message || error}`;
+            }
+          },
+          async startDronePhotoTask() {
+            this.errorMessage = "";
+            this.dronePhotoMessage = "";
+            this.crackAnalysis = null;
+            this.crackMessage = "";
+            this.resetCrackToastForFlight();
+            try {
+              this.droneTask = await this.callDroneApi("/api/drone/start-photo-task", {
+                method: "POST",
+                body: JSON.stringify({})
+              });
+              this.droneVideoNonce += 1;
+              this.addDroneLog("drone/start-photo-task", this.droneTask);
+              this.startDroneTaskPolling();
+              this.startDroneVideoPolling();
+            } catch (error) {
+              this.errorMessage = `Drone cruise crack task failed: ${error.message || error}`;
+            }
+          },
+          async startDroneReturnQrTest() {
+            this.errorMessage = "";
+            this.dronePhotoMessage = "";
+            this.crackAnalysis = null;
+            this.crackMessage = "";
+            this.resetCrackToastForFlight();
+            try {
+              const preflight = await this.callDroneApi("/api/drone/preflight");
+              if (!preflight.ready) {
+                throw new Error(preflight.message || "无人机局域网检查未通过");
+              }
+              this.droneTask = await this.callDroneApi("/api/drone/start-return-qr-test", {
+                method: "POST",
+                body: JSON.stringify({
+                  return_qr_id: 7,
+                  landing_qr_id: 2
+                })
+              });
+              this.droneVideoNonce += 1;
+              this.addDroneLog("drone/start-return-qr-test", this.droneTask);
+              this.startDroneTaskPolling();
+              this.startDroneVideoPolling();
+            } catch (error) {
+              this.errorMessage = `Drone return QR test failed: ${error.message || error}`;
+            }
+          },
+          async emergencyLandDrone() {
+            this.errorMessage = "";
+            try {
+              this.droneTask = await this.callDroneApi("/api/drone/emergency-land", { method: "POST" });
+              this.addDroneLog("drone/emergency-land", this.droneTask);
+              this.startDroneTaskPolling();
+            } catch (error) {
+              this.errorMessage = `Emergency landing failed: ${error.message || error}`;
+            }
+          },
+          async refreshDroneVideoStatus() {
+            try {
+              this.droneVideo = await this.callDroneApi("/api/drone/video-status");
+            } catch (error) {
+              this.errorMessage = `Drone video backend failed: ${error.message || error}`;
+            }
+          },
+          startDroneVideoPolling() {
+            if (this.droneVideoPolling) return;
+            this.droneVideoPolling = window.setInterval(async () => {
+              await this.refreshDroneVideoStatus();
+              if (!this.droneVideo?.running && !this.droneTask?.running) {
+                window.clearInterval(this.droneVideoPolling);
+                this.droneVideoPolling = null;
+              }
+            }, 1500);
+          },
+          async startDroneVideo() {
+            this.errorMessage = "";
+            this.dronePhotoMessage = "";
+            try {
+              this.droneVideo = await this.callDroneApi("/api/drone/start-video", { method: "POST" });
+              this.droneVideoNonce += 1;
+              this.addDroneLog("drone/start-video", this.droneVideo);
+              this.startDroneVideoPolling();
+            } catch (error) {
+              this.droneVideo = {
+                ...(this.droneVideo || {}),
+                running: false,
+                error: error.message || String(error)
+              };
+              this.errorMessage = `Drone video start failed: ${error.message || error}`;
+            }
+          },
+          async stopDroneVideo() {
+            this.errorMessage = "";
+            try {
+              this.droneVideo = await this.callDroneApi("/api/drone/stop-video", { method: "POST" });
+              this.droneVideoNonce += 1;
+              this.addDroneLog("drone/stop-video", this.droneVideo);
+              if (this.droneVideoPolling) {
+                window.clearInterval(this.droneVideoPolling);
+                this.droneVideoPolling = null;
+              }
+            } catch (error) {
+              this.errorMessage = `Drone video stop failed: ${error.message || error}`;
+            }
+          },
+          async takeDronePhoto() {
+            this.errorMessage = "";
+            this.dronePhotoMessage = "正在保存照片...";
+            this.dronePhotoSaving = true;
+            this.crackAnalysis = null;
+            this.crackMessage = "";
+            try {
+              const result = await this.callDroneApi("/api/drone/take-photo", { method: "POST" });
+              this.addDroneLog("drone/take-photo", result);
+              if (result.success === false) {
+                throw new Error(result.error || "后端保存失败");
+              }
+              if (result.photo) {
+                this.droneVideo = {
+                  ...(this.droneVideo || {}),
+                  last_photo: result.photo,
+                  recent_photos: result.recent_photos || [result.photo],
+                  max_saved_photos: result.max_saved_photos
+                };
+                this.dronePhotoMessage = `保存成功：${result.photo.path || result.photo.filename}`;
+              } else {
+                this.dronePhotoMessage = "保存失败：后端没有返回照片路径";
+              }
+            } catch (error) {
+              this.dronePhotoMessage = `保存失败：${error.message || error}`;
+              this.errorMessage = `Drone photo failed: ${error.message || error}`;
+            } finally {
+              this.dronePhotoSaving = false;
+            }
+          },
+          async analyzeLatestCrackPhoto() {
+            this.errorMessage = "";
+            this.crackMessage = "分析中";
+            this.crackAnalyzing = true;
+            try {
+              const result = await this.callDroneApi("/api/crack/analyze-latest-photo", { method: "POST" });
+              this.addDroneLog("crack/analyze-latest-photo", result);
+              if (result.success === false) {
+                throw new Error(result.error || "裂缝识别失败");
+              }
+              this.crackAnalysis = result;
+              this.crackImageNonce += 1;
+              this.crackMessage = "";
+              this.showCrackToast(result);
+            } catch (error) {
+              this.crackAnalysis = null;
+              this.crackMessage = error.message || String(error);
+              this.errorMessage = `Crack analysis failed: ${error.message || error}`;
+            } finally {
+              this.crackAnalyzing = false;
+            }
+          },
+          publishCommand(command) {
+            if (!this.client || !this.connected) return;
+            this.client.publish(this.commandTopic, JSON.stringify(command), { qos: 0, retain: false });
+          },
+          applyUploadInterval() {
+            this.publishCommand({
+              cmd: "setUploadInterval",
+              value: Number(this.uploadIntervalMs)
+            });
+          },
+          setProximityEnabled() {
+            this.publishCommand({
+              cmd: "setProximityEnabled",
+              value: !!this.proximityEnabled
+            });
+          },
+          setWaterEnabled() {
+            this.publishCommand({
+              cmd: "setWaterEnabled",
+              value: !!this.waterEnabled
+            });
+          },
+          setWeatherEnabled() {
+            this.publishCommand({
+              cmd: "setWeatherEnabled",
+              value: !!this.weatherEnabled
+            });
+          },
+          applyWaterThresholds() {
+            const caution = Number(this.waterThresholds.caution);
+            const warning = Number(this.waterThresholds.warning);
+            const danger = Number(this.waterThresholds.danger);
+            if (!(caution >= 0 && caution < warning && warning < danger && danger <= 100)) {
+              this.errorMessage = "水位档位必须满足：0 <= 注意 < 较深 < 危险 <= 100";
+              return;
+            }
+            this.errorMessage = "";
+            this.publishCommand({
+              cmd: "setWaterThresholds",
+              caution,
+              warning,
+              danger
+            });
+            this.waterTuningDirty = false;
+          },
+          applyWaterCalibration() {
+            const dry = Number(this.waterCalibration.dry);
+            const wet = Number(this.waterCalibration.wet);
+            if (!(dry >= 0 && dry <= 4095 && wet >= 0 && wet <= 4095 && dry !== wet)) {
+              this.errorMessage = "ADC 标定必须是 0 到 4095 之间的两个不同数值";
+              return;
+            }
+            this.errorMessage = "";
+            this.publishCommand({
+              cmd: "setWaterCalibration",
+              dry,
+              wet
+            });
+            this.waterTuningDirty = false;
+          },
+          boolText(value) {
+            if (value === true) return "是";
+            if (value === false) return "否";
+            return "-";
+          },
+          percentText(value) {
+            return typeof value === "number" ? `${value.toFixed(1)}%` : "-";
+          },
+          distanceText(value) {
+            return typeof value === "number" ? `${value} mm` : "-";
+          },
+          uptimeTextFrom(value) {
+            if (typeof value !== "number") return "-";
+            const totalSeconds = Math.floor(value / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+          },
+          weatherText(key) {
+            const weather = this.telemetry?.weather;
+            if (!weather?.enabled) return "未启用";
+            if (!weather.online || !weather.dataValid) return "待接入";
+
+            const fixed = (value, digits = 1) =>
+              typeof value === "number" ? value.toFixed(digits) : "-";
+
+            switch (key) {
+              case "windSpeed":
+                return `${fixed(weather.windSpeedMps)} m/s`;
+              case "windDirection":
+                return typeof weather.windDirectionDeg === "number"
+                  ? `${weather.windDirectionDeg}°`
+                  : "-";
+              case "rainfall":
+                return `${fixed(weather.rainfallMm)} mm`;
+              case "illuminance": {
+                if (typeof weather.lightHundredLux === "number") {
+                  return `${(weather.lightHundredLux * 100).toLocaleString()} lx`;
+                }
+                if (typeof weather.lightLuxRaw === "number") {
+                  return `${weather.lightLuxRaw.toLocaleString()} lx`;
+                }
+                return "-";
+              }
+              case "temperature":
+                return `${fixed(weather.temperatureC)} °C`;
+              case "humidity":
+                return `${fixed(weather.humidityPercent)}%`;
+              case "pressure":
+                return `${fixed(weather.pressureKpa)} kPa`;
+              default:
+                return "-";
+            }
+          },
+          levelClass(level) {
+            const key = String(level || "").toLowerCase();
+            if (key.includes("danger")) return "danger";
+            if (key.includes("warning")) return "warning";
+            if (key.includes("caution")) return "caution";
+            if (key.includes("fault") || key.includes("invalid")) return "fault";
+            if (key.includes("safe")) return "safe";
+            return "";
+          }
+        },
+        mounted() {
+          this.connect();
+          this.refreshDroneTaskStatus();
+          this.refreshDroneVideoStatus();
+        },
+        beforeUnmount() {
+          if (this.droneTaskPolling) {
+            window.clearInterval(this.droneTaskPolling);
+            this.droneTaskPolling = null;
+          }
+          if (this.droneVideoPolling) {
+            window.clearInterval(this.droneVideoPolling);
+            this.droneVideoPolling = null;
+          }
+        }
+      }).mount("#app");
+    })();
+  </script>
+  <style>
+    #crack-warning-toast {
+      position: fixed;
+      z-index: 2147483647;
+      top: 50%;
+      left: 50%;
+      width: min(340px, calc(100vw - 48px));
+      box-sizing: border-box;
+      padding: 14px 18px;
+      border: 1px solid #efb5ad;
+      border-radius: 8px;
+      background: #fff5f3;
+      box-shadow: 0 12px 28px rgba(78, 34, 30, 0.2);
+      color: #a2281d;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.5;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, calc(-50% + 10px));
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    #crack-warning-toast.is-visible {
+      opacity: 1;
+      transform: translate(-50%, -50%);
+    }
+  </style>
+
+  <div id="crack-warning-toast" role="alert" aria-live="assertive">
+    警告：发现地面裂缝
+  </div>
+
+  <script>
+    (() => {
+      return;
+      if (window.__crackWarningToastInstalled) return;
+      window.__crackWarningToastInstalled = true;
+
+      const toast = document.getElementById("crack-warning-toast");
+      let lastReportKey = "";
+      let monitoringReady = false;
+      let hideTimer = null;
+
+      function getCrackReportText() {
+        const pageText = document.body.innerText || "";
+        const start = pageText.indexOf("路面裂缝识别报告");
+        return start >= 0 ? pageText.slice(start, start + 2500) : "";
+      }
+
+      function getFieldValue(lines, fieldName) {
+        const index = lines.findIndex((line) => line.includes(fieldName));
+        if (index < 0) return "";
+
+        const current = lines[index].replace(fieldName, "").trim();
+        return current || lines[index + 1] || "";
+      }
+
+      function getReportState(reportText) {
+        if (!reportText) return { key: "", hasCrack: false };
+
+        const lines = reportText
+          .split(/\n+/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+        const photo = getFieldValue(lines, "分析照片");
+        const widthText = getFieldValue(lines, "裂缝像素宽度");
+        const widthMatch = widthText.match(/(\d+(?:\.\d+)?)/);
+        const width = widthMatch ? Number(widthMatch[1]) : 0;
+        const key = [photo, widthText, getFieldValue(lines, "拍摄段数")].join("|");
+        const hasFailure = /未检测到裂缝|无裂缝|识别失败/.test(reportText);
+
+        return { key, hasCrack: Boolean(key && width > 0 && !hasFailure) };
+      }
+
+      function showCrackWarning() {
+        if (!toast) return;
+        window.clearTimeout(hideTimer);
+        toast.classList.add("is-visible");
+        hideTimer = window.setTimeout(() => {
+          toast.classList.remove("is-visible");
+        }, 3000);
+      }
+
+      function inspectCrackReport() {
+        if (!monitoringReady) return;
+
+        const state = getReportState(getCrackReportText());
+        if (!state.key || state.key === lastReportKey) return;
+
+        lastReportKey = state.key;
+        if (state.hasCrack) showCrackWarning();
+      }
+
+      // Capture the page's existing report first; later reports are new flight results.
+      window.setTimeout(() => {
+        lastReportKey = getReportState(getCrackReportText()).key;
+        monitoringReady = true;
+        inspectCrackReport();
+      }, 700);
+
+      const observer = new MutationObserver(inspectCrackReport);
+      observer.observe(document.body, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+      window.setInterval(inspectCrackReport, 500);
+    })();
+  </script>
+  <div id="crack-result-toast" class="crack-result-toast" role="status" aria-live="polite" aria-atomic="true">
+    <div id="crack-result-toast-title" class="crack-result-toast-title"></div>
+    <div id="crack-result-toast-message" class="crack-result-toast-message"></div>
+  </div>
+
+  <style>
+    .crack-result-toast {
+      position: fixed;
+      z-index: 2147483647;
+      left: 50%;
+      top: 50%;
+      width: min(360px, calc(100vw - 40px));
+      box-sizing: border-box;
+      padding: 16px 20px;
+      border: 1px solid #bfd4c4;
+      border-radius: 8px;
+      background: #f6fbf7;
+      color: #173151;
+      box-shadow: 0 16px 42px rgba(20, 38, 64, .28);
+      text-align: center;
+      transform: translate(-50%, -50%) scale(.96);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease, visibility .18s ease;
+    }
+    .crack-result-toast.is-visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .crack-result-toast.is-warning {
+      border-color: #efafa4;
+      background: #fff6f4;
+      color: #9e3326;
+    }
+    .crack-result-toast-title {
+      margin-bottom: 6px;
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .crack-result-toast-message {
+      font-size: 14px;
+      line-height: 1.55;
+    }
+  </style>
+
+  <script>
+    (() => {
+      return;
+      const toast = document.getElementById('crack-result-toast');
+      const title = document.getElementById('crack-result-toast-title');
+      const message = document.getElementById('crack-result-toast-message');
+      const seenKey = 'pyhulax.crack-toast.marker';
+      let timer = null;
+
+      function textOf(value) {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'object') {
+          try { return JSON.stringify(value); } catch (_) { return ''; }
+        }
+        return String(value);
+      }
+
+      function findCrackResult(value, path = '') {
+        if (!value || typeof value !== 'object') return null;
+        const keyText = Object.keys(value).join(' ').toLowerCase();
+        const valueText = textOf(value).toLowerCase();
+        if (/crack|裂缝/.test(keyText) && /result|report|detect|width|识别|状态|photo|图片/.test(keyText + ' ' + valueText)) {
+          return { value, path };
+        }
+        for (const [key, child] of Object.entries(value)) {
+          const found = findCrackResult(child, path ? `${path}.${key}` : key);
+          if (found) return found;
+        }
+        return null;
+      }
+
+      function firstValue(source, names) {
+        for (const name of names) {
+          if (source && source[name] !== undefined && source[name] !== null && source[name] !== '') return source[name];
+        }
+        return '';
+      }
+
+      function showToast(detected, detail) {
+        if (!toast) return;
+        clearTimeout(timer);
+        toast.classList.toggle('is-warning', detected);
+        title.textContent = detected ? '警告：发现地面裂缝' : '路面巡检完成';
+        message.textContent = detected ? '已完成本次裂缝分析，请查看下方识别报告。' : (detail || '本次照片已完成裂缝分析，未发现明显裂缝。');
+        toast.classList.add('is-visible');
+        timer = window.setTimeout(() => toast.classList.remove('is-visible'), 3000);
+      }
+
+      function inspectStatus(payload) {
+        if (!payload || typeof payload !== 'object') return;
+        const result = findCrackResult(payload);
+        const allText = textOf(payload);
+        const taskText = textOf(firstValue(payload, ['message', 'phase', 'current_phase', 'status_message']));
+        const crackTask = /裂缝|crack/i.test(allText);
+        if (!result && !crackTask) return;
+
+        const source = result ? result.value : payload;
+        const marker = textOf(firstValue(source, [
+          'id', 'report_id', 'finished_at', 'updated_at', 'created_at', 'timestamp',
+          'photo_path', 'source_path', 'image_path', 'result_csv', 'csv_path'
+        ])) || textOf(firstValue(payload, ['finished_at', 'started_at'])) || taskText;
+        if (!marker || sessionStorage.getItem(seenKey) === marker) return;
+
+        const detailText = textOf(source);
+        const explicitlyClear = /未发现|未检测到|无裂缝|no crack|not detected/i.test(detailText + ' ' + taskText);
+        const explicitDetected = firstValue(source, ['detected', 'has_crack', 'found', 'success']);
+        const width = Number(firstValue(source, ['physical_width_cm', 'width_cm', 'crack_width_cm', 'pixel_width', 'crack_width_px']));
+        const detected = explicitDetected === true || explicitDetected === 1 || explicitDetected === 'true' || (!explicitlyClear && Number.isFinite(width) && width > 0);
+
+        if (!detected && !explicitlyClear && !/完成|completed|结束|finished/i.test(taskText + ' ' + detailText)) return;
+        sessionStorage.setItem(seenKey, marker);
+        showToast(detected, explicitlyClear ? '本次照片已完成裂缝分析，未发现明显裂缝。' : '本次裂缝识别结果已生成，请查看下方识别报告。');
+      }
+
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = async (...args) => {
+        const response = await originalFetch(...args);
+        const url = String(args[0] && (args[0].url || args[0]));
+        if (url.includes('/api/drone/status')) {
+          response.clone().json().then(inspectStatus).catch(() => {});
+        }
+        return response;
+      };
+    })();
+  </script>
+<style>
+  #pyhulax-crack-toast-v3 {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    z-index: 2147483647;
+    width: min(360px, calc(100vw - 48px));
+    padding: 18px 22px;
+    box-sizing: border-box;
+    border: 1px solid #f1c4bd;
+    border-radius: 8px;
+    background: rgba(255, 250, 248, 0.98);
+    box-shadow: 0 16px 42px rgba(25, 45, 73, 0.26);
+    color: #1d3049;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.96);
+    transition: opacity 160ms ease, transform 160ms ease, visibility 160ms ease;
+  }
+  #pyhulax-crack-toast-v3.pyhulax-toast-show {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  #pyhulax-crack-toast-v3 strong,
+  #pyhulax-crack-toast-v3 span { display: block; }
+  #pyhulax-crack-toast-v3 strong { font-size: 20px; line-height: 1.35; }
+  #pyhulax-crack-toast-v3 span { margin-top: 6px; color: #63738a; font-size: 14px; }
+</style>
+<script>
+  /* Independent crack-notification layer: one short popup for each new report. */
+  (function () {
+    'use strict';
+    return;
+    var old = document.getElementById('pyhulax-crack-toast-v3');
+    if (old) old.remove();
+
+    var toast = document.createElement('section');
+    toast.id = 'pyhulax-crack-toast-v3';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.innerHTML = '<strong></strong><span></span>';
+    document.body.appendChild(toast);
+
+    var title = toast.querySelector('strong');
+    var detail = toast.querySelector('span');
+    var timer = null;
+    var ready = false;
+    var seen = Object.create(null);
+
+    function textOf(value) {
+      try { return typeof value === 'string' ? value : JSON.stringify(value || {}); }
+      catch (_) { return String(value || ''); }
+    }
+
+    function reportKey(value) {
+      var text = textOf(value);
+      var stamp = text.match(/20\d{6}[_-]\d{6}[^"\\\s]*(?:stream|crack)[^"\\\s]*/i);
+      if (stamp) return stamp[0];
+      var finished = text.match(/"(?:finished_at|updated_at|timestamp)"\s*:\s*"([^"]+)"/i);
+      return finished ? finished[1] : '';
+    }
+
+    function crackFound(value) {
+      var text = textOf(value).toLowerCase();
+      return /"(?:crack_found|has_crack|detected)"\s*:\s*true/.test(text) ||
+        /(?:发现地面裂缝|检测到裂缝|crack detected|crack_found)/i.test(text) &&
+        !/(?:未发现|no crack|not detected|false)/i.test(text);
+    }
+
+    function show(found) {
+      title.textContent = found ? '警告：发现地面裂缝' : '巡检完成：未发现地面裂缝';
+      detail.textContent = found ? '已完成本次照片裂缝检查' : '已完成本次照片裂缝检查';
+      toast.classList.add('pyhulax-toast-show');
+      window.clearTimeout(timer);
+      timer = window.setTimeout(function () {
+        toast.classList.remove('pyhulax-toast-show');
+      }, 3000);
+    }
+
+    function inspect(value) {
+      var key = reportKey(value);
+      if (!key || seen[key]) return;
+      if (!ready) {
+        seen[key] = true;
+        return;
+      }
+      seen[key] = true;
+      show(crackFound(value));
+    }
+
+    window.pyhulaxShowCrackToast = function (found) { show(!!found); };
+
+    var nativeFetch = window.fetch;
+    if (nativeFetch) {
+      window.fetch = function () {
+        var request = arguments[0];
+        var url = typeof request === 'string' ? request : (request && request.url) || '';
+        return nativeFetch.apply(this, arguments).then(function (response) {
+          if (/\/api\/(?:drone\/status|crack)/i.test(url)) {
+            response.clone().json().then(inspect).catch(function () {});
+          }
+          return response;
+        });
+      };
+    }
+
+    window.setTimeout(function () { ready = true; }, 1200);
+  }());
+</script>
+<style id="pyhulax-crack-toast-v4-style">
+  #pyhulax-crack-toast-v4 {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    z-index: 2147483647;
+    display: none;
+    width: min(420px, calc(100vw - 48px));
+    transform: translate(-50%, -50%);
+    padding: 20px 24px;
+    border: 1px solid #f2c7c3;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 16px 40px rgba(20, 37, 63, 0.26);
+    color: #1d304a;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: center;
+    pointer-events: none;
+  }
+  #pyhulax-crack-toast-v4.pyhulax-crack-alert {
+    border-color: #f0a7a0;
+    color: #b42318;
+  }
+</style>
+<script id="pyhulax-crack-toast-v4-script">
+(() => {
+  return;
+  if (window.__pyhulaxCrackToastV4) return;
+  window.__pyhulaxCrackToastV4 = true;
+
+  const olderToast = document.getElementById('pyhulax-crack-toast-v3');
+  if (olderToast) olderToast.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'pyhulax-crack-toast-v4';
+  document.body.appendChild(toast);
+
+  let hideTimer = null;
+  let missionActive = false;
+  const displayed = new Set();
+
+  function showToast(found) {
+    toast.classList.toggle('pyhulax-crack-alert', found);
+    toast.textContent = found ? '警告：发现地面裂缝' : '巡检完成：未发现明显地面裂缝';
+    toast.style.display = 'block';
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { toast.style.display = 'none'; }, 3000);
+  }
+
+  function findCrackEvidence(value, depth = 0) {
+    if (depth > 6 || value == null) return false;
+    if (typeof value === 'string') {
+      return /发现.{0,8}裂缝|裂缝.{0,8}(发现|检测到)|crack.{0,16}(found|detect)/i.test(value);
+    }
+    if (Array.isArray(value)) return value.some((item) => findCrackEvidence(item, depth + 1));
+    if (typeof value !== 'object') return false;
+
+    for (const [key, item] of Object.entries(value)) {
+      const name = String(key).toLowerCase();
+      if ((name === 'has_crack' || name === 'crack_found' || name === 'crack_detected') && item === true) return true;
+      if ((name === 'crack_count' || name === 'cracks') && Number(item) > 0) return true;
+      if ((name.includes('crack') || name.includes('裂缝')) && findCrackEvidence(item, depth + 1)) return true;
+    }
+    return false;
+  }
+
+  function inspectResponse(data, url) {
+    if (!data || typeof data !== 'object') return;
+
+    if (/\/api\/drone\/start-(?!video)/.test(url)) missionActive = true;
+    if (data.running === true) missionActive = true;
+
+    const phase = String(data.phase || data.status || '');
+    const finished = data.running === false && (
+      data.finished_at ||
+      /completed|failed|完成|结束|降落/i.test(phase)
+    );
+
+    if (!missionActive || !finished) return;
+
+    const key = String(data.finished_at || '') + '|' + phase + '|' + String(data.started_at || '');
+    if (displayed.has(key)) return;
+
+    displayed.add(key);
+    missionActive = false;
+    showToast(findCrackEvidence(data));
+  }
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const response = await originalFetch(...args);
+    const request = args[0];
+    const url = typeof request === 'string' ? request : (request && request.url) || '';
+    response.clone().json().then((data) => inspectResponse(data, url)).catch(() => {});
+    return response;
+  };
+})();
+</script>
+</body>
+</html>
+

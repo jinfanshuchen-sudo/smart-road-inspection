@@ -1,0 +1,361 @@
+pyhulax-main 基础代码改动速查
+更新时间：2026-06-25
+
+一、先说最重要的操作习惯
+
+1. 用 VSCode 打开项目文件夹：
+   C:\Users\61700\Desktop\pyhulax-main
+
+2. 快速查找某个参数或函数：
+   - 当前文件内查找：Ctrl + F
+   - 整个项目查找：Ctrl + Shift + F
+   - 跳到指定行：Ctrl + G，然后输入行号，例如 1944
+
+3. 改完代码后必须重启后端：
+   在运行后端的 PowerShell 窗口按 Ctrl + C，然后重新输入：
+   .\.venv\Scripts\python.exe .\drone_mission_service.py
+
+4. 网页如果没变化：
+   浏览器按 Ctrl + F5 强制刷新。
+
+
+二、无人机后端主文件
+
+主要改这个文件：
+drone_mission_service.py
+
+Vue 网页界面改这个文件：
+dashboard\index.html
+
+
+三、下视 D0 对准降落测试：常用参数
+
+功能按钮名称：
+下视D0对准降落测试
+
+后端接口位置：
+drone_mission_service.py
+搜索关键词：
+start-downward-d0-test
+
+当前关键参数大约在 drone_mission_service.py 第 1943 行附近。
+
+1. 改起飞高度
+
+搜索：
+"height_cm": int(payload.get("height_cm", 70))
+
+现在默认是 70cm：
+"height_cm": int(payload.get("height_cm", 70)),
+
+如果要改成 80cm：
+"height_cm": int(payload.get("height_cm", 80)),
+
+注意：这个接口下面还有限制：
+params["height_cm"] = max(60, min(200, params["height_cm"]))
+
+意思是最低 60cm，最高 200cm。如果你填 50，实际会被限制成 60。
+
+
+2. 改每次向前搜索距离
+
+搜索：
+"step_cm": int(payload.get("step_cm", 15))
+
+现在默认是每段向前 15cm：
+"step_cm": int(payload.get("step_cm", 15)),
+
+之前是 10cm，如果想改回 10cm：
+"step_cm": int(payload.get("step_cm", 10)),
+
+如果想稍微再大一点，比如 20cm：
+"step_cm": int(payload.get("step_cm", 20)),
+
+注意不要一次改太大，D0 板子较小时容易飞过头。建议 15、20 这样小步试。
+
+
+3. 改最多向前搜索几段
+
+搜索：
+"max_steps": int(payload.get("max_steps", 12))
+
+现在默认最多 12 段：
+"max_steps": int(payload.get("max_steps", 12)),
+
+如果要最多 15 段：
+"max_steps": int(payload.get("max_steps", 15)),
+
+下面有限制：
+params["max_steps"] = max(1, min(20, params["max_steps"]))
+
+意思是最多不会超过 20 段。
+
+
+4. 改每段停下来识别几次 D0
+
+搜索：
+"scan_attempts": int(payload.get("scan_attempts", 5))
+
+现在默认每段识别 5 次：
+"scan_attempts": int(payload.get("scan_attempts", 5)),
+
+如果识别不稳定，可以改成 8：
+"scan_attempts": int(payload.get("scan_attempts", 8)),
+
+缺点是任务会变慢一点。
+
+
+5. 改前置摄像头向下角度
+
+搜索：
+"camera_angle": int(payload.get("camera_angle", 90))
+
+现在默认是 90 度，也就是尽量向下看：
+"camera_angle": int(payload.get("camera_angle", 90)),
+
+如果以后发现角度太低或太高，可以试 75、80、85。
+目前你测试 D0 在地面上，建议先保持 90。
+
+
+6. 改 D0 对准容许误差
+
+搜索：
+"align_tolerance_cm": float(payload.get("align_tolerance_cm", 8.0))
+
+现在默认误差 8cm 内算对准：
+"align_tolerance_cm": float(payload.get("align_tolerance_cm", 8.0)),
+
+如果想更严格，可以改成 5：
+"align_tolerance_cm": float(payload.get("align_tolerance_cm", 5.0)),
+
+但太严格可能导致无人机来回修正，任务变慢，甚至丢失 D0。
+
+
+7. 改 D0 对准时每次小修正距离
+
+搜索：
+"min_align_step_cm": int(payload.get("min_align_step_cm", 5))
+"max_align_step_cm": int(payload.get("max_align_step_cm", 12))
+
+现在默认：
+最小修正 5cm，最大修正 12cm。
+
+如果修正太慢，可以把最大修正改成 15：
+"max_align_step_cm": int(payload.get("max_align_step_cm", 15)),
+
+如果修正太猛，就保持 12 或改小。
+
+
+8. 改最多对准修正几次
+
+搜索：
+"max_align_steps": int(payload.get("max_align_steps", 5))
+
+现在默认最多修正 5 次：
+"max_align_steps": int(payload.get("max_align_steps", 5)),
+
+如果想给它更多机会，可以改成 7：
+"max_align_steps": int(payload.get("max_align_steps", 7)),
+
+
+9. D0 目标 X/Y 是什么
+
+Vue 网页里有：
+D0目标X cm
+D0目标Y cm
+
+当前界面默认显示 X=0，Y=0。
+后端内部会叠加一个隐藏补偿，用来抵消无人机左右固定偏差。
+这样演示界面看起来仍是以 D0 中心为目标，但实际飞行会做微调。
+
+如果无人机每次都固定落偏，可以在网页上直接改 X/Y，不一定要改代码。
+
+例如：
+如果每次落点都偏左，可以在当前默认值基础上把 D0目标X 改大或改小 5cm。
+如果方向不对，就反过来改。
+
+这个必须实测，因为摄像头安装角度、无人机下降漂移、机身中心偏移都会影响落点。
+
+
+四、正式任务和拍照执行任务：常用参数
+
+1. 正式任务按钮
+
+按钮名称：
+开始执行任务
+
+后端位置：
+drone_mission_service.py
+
+搜索：
+start-task
+
+常见默认参数在 start_task() 附近。
+
+
+2. 拍照执行任务按钮
+
+按钮名称：
+拍照执行任务
+
+后端位置：
+drone_mission_service.py
+
+搜索：
+start-photo-task
+
+当前参数大约在第 1777 行附近：
+"height_cm": int(payload.get("height_cm", 80)),
+"step_cm": int(payload.get("step_cm", 40)),
+"max_steps": int(payload.get("max_steps", 6)),
+
+意思是：
+起飞 80cm；
+每次向前 40cm；
+最多向前 6 次；
+并且每段会自动拍照。
+
+如果要改拍照执行任务飞行距离，就改这里。
+
+
+五、实时高度测试
+
+按钮名称：
+实时高度测试
+
+后端位置：
+drone_mission_service.py
+
+搜索：
+start-video-task
+
+这个任务主要用于看 ToF 高度、XYZ 坐标、无人机偏移角，不用于识别 D0。
+
+
+六、照片保存相关
+
+照片保存文件夹：
+media\photos
+
+后端定义位置：
+drone_mission_service.py 顶部附近
+
+搜索：
+PHOTO_DIR
+
+当前设置：
+PHOTO_DIR = MEDIA_DIR / "photos"
+
+最多保留照片数量：
+搜索：
+MAX_SAVED_PHOTOS
+
+当前最多保留 50 张。超过 50 张会自动删除最旧的。
+
+网页显示最近几张：
+搜索：
+RECENT_PHOTOS_TO_SHOW
+
+当前显示最近 3 张。
+
+
+七、裂缝识别相关
+
+裂缝识别文件：
+crack_detector.py
+
+后端接口：
+drone_mission_service.py
+
+搜索：
+analyze-latest-photo
+
+Vue 面板：
+dashboard\index.html
+
+搜索：
+路面裂缝识别
+或：
+analyzeLatestCrackPhoto
+
+当前逻辑：
+先拍照保存，再点击“分析最近照片”，程序会分析 media\photos 里最新的一张照片。
+
+结果保存位置：
+media\crack_results
+
+结果 CSV：
+media\crack_results\result.csv
+
+
+八、Vue 网页按钮对应关系
+
+Vue 文件：
+dashboard\index.html
+
+搜索按钮文字即可找到位置，例如：
+开始执行任务
+实时高度测试
+D0识别距离测试
+下视D0对准降落测试
+拍照执行任务
+紧急降落
+
+如果要改按钮文字，直接改 dashboard\index.html 里面按钮中间的中文。
+
+例如：
+<button ...>下视D0对准降落测试</button>
+
+改成：
+<button ...>D0精准降落测试</button>
+
+
+九、后端启动地址
+
+后端启动位置：
+drone_mission_service.py 最底部
+
+搜索：
+PYHULAX_HOST
+PYHULAX_PORT
+
+当前默认：
+PYHULAX_HOST 默认 127.0.0.1
+PYHULAX_PORT 默认 5055
+
+也就是本机打开：
+http://127.0.0.1:5055/
+
+树莓派上一般会用：
+PYHULAX_HOST=0.0.0.0
+
+这样其他设备才能通过树莓派 IP 打开网页。
+
+
+十、每次改完以后怎么确认没有写坏
+
+在 PowerShell 里进入项目目录：
+cd C:\Users\61700\Desktop\pyhulax-main
+
+运行语法检查：
+python -m py_compile .\drone_mission_service.py .\crack_detector.py
+
+如果没有红色报错，说明 Python 语法没问题。
+
+然后重启后端：
+.\.venv\Scripts\python.exe .\drone_mission_service.py
+
+
+十一、安全提醒
+
+1. 飞行参数不要一次改太大。
+   比如前进距离从 15 改到 20 可以，直接改到 50 风险就大。
+
+2. D0 目标 X/Y 不要一次改太大。
+   建议每次只改 5cm 或 10cm。
+
+3. 如果无人机修正方向明显反了，先不要继续加大参数。
+   应该把 X/Y 方向反过来试，或者停下来检查逻辑。
+
+4. 改完代码必须重启后端。
+   网页刷新不等于后端代码生效。

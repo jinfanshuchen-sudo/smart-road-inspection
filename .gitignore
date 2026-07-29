@@ -1,0 +1,44 @@
+__pycache__/
+*.pyc
+.venv/
+.idea/
+.codex
+.claude/
+.build/
+dist/
+site/
+
+# Local delivery artifacts and offline wheel bundles.
+客户交付包_*/
+*_客户交付包_*.zip
+*.zip
+
+# Generated runtime data and logs.
+logs/
+media/photos/
+media/crack_results/
+*.log
+
+# Local credentials and device-specific configuration.
+.env
+.env.*
+local_secrets.h
+secrets.h
+**/local_secrets.h
+**/secrets.h
+
+# Historical local backups are not the current application source.
+backups/
+*.bak
+drone_mission_service.before_*.py
+dashboard/*.bak.html
+dashboard/index.backup-*.html
+dashboard/index.before_*.html
+
+# Generated report files are retained locally; source documentation is under docs/.
+*.docx
+docx_diagrams/
+docx_rendered_preview/
+
+# Existing package-publishing workflows are unrelated to this application repo.
+.github/

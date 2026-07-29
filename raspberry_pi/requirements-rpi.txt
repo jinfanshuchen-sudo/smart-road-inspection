@@ -1,0 +1,10 @@
+# Minimal Python packages for Raspberry Pi deployment.
+# OpenCV and PyAV are installed with apt in setup_rpi.sh so the venv can reuse
+# system packages through --system-site-packages.
+flask
+pymavlink
+psutil
+pyserial
+pydantic>=2.0
+requests
+numpy

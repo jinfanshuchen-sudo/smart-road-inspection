@@ -1,0 +1,17 @@
+[Unit]
+Description=Pyhulax Drone Dashboard Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=afan
+WorkingDirectory=/home/afan/pyhulax-main
+Environment=PYHULAX_HOST=0.0.0.0
+Environment=PYHULAX_PORT=5055
+ExecStart=/home/afan/pyhulax-main/.venv/bin/python /home/afan/pyhulax-main/drone_mission_service.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
