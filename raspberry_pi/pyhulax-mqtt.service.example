@@ -1,5 +1,5 @@
 [Unit]
-Description=Pyhulax Drone Dashboard Backend
+Description=Pyhulax Offline MQTT Broker
 After=network-online.target
 Wants=network-online.target
 
@@ -7,10 +7,8 @@ Wants=network-online.target
 Type=simple
 User=__PYHULAX_USER__
 WorkingDirectory=__PYHULAX_DIR__
-Environment=PYHULAX_HOST=0.0.0.0
-Environment=PYHULAX_PORT=5055
 Environment=PYTHONUNBUFFERED=1
-ExecStart=__PYHULAX_DIR__/.venv/bin/python __PYHULAX_DIR__/drone_mission_service.py
+ExecStart=__PYHULAX_DIR__/.venv/bin/python __PYHULAX_DIR__/offline_mqtt_broker.py
 Restart=always
 RestartSec=3
 

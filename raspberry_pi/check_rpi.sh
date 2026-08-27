@@ -26,7 +26,7 @@ if [ -f ".venv/bin/activate" ]; then
   source .venv/bin/activate
 fi
 python - <<'PY'
-checks = ["flask", "cv2", "numpy", "pyhulax"]
+checks = ["flask", "cv2", "numpy", "pyhulax", "amqtt"]
 for name in checks:
     try:
         module = __import__(name)

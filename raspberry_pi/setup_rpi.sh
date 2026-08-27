@@ -32,10 +32,12 @@ import flask
 import cv2
 import numpy
 import pyhulax
+import amqtt
 print("Flask:", flask.__version__)
 print("OpenCV:", cv2.__version__)
 print("NumPy:", numpy.__version__)
 print("pyhulax import ok")
+print("amqtt import ok")
 PY
 
 echo
