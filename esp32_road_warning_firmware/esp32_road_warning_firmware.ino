@@ -43,6 +43,7 @@ struct WaterState {
 struct WeatherState {
   bool enabled = ENABLE_WEATHER;
   bool online = false;
+  bool dataValid = false;
   float windSpeedMps = 0;
   float windDirectionDeg = 0;
   float rainfallMm = 0;
@@ -209,9 +210,11 @@ void pollWeather() {
   uint16_t value[WEATHER_REGISTER_COUNT];
   if (!readWeatherRegisters(value, WEATHER_REGISTER_COUNT)) {
     weather.online = false;
+    weather.dataValid = false;
     return;
   }
   weather.online = true;
+  weather.dataValid = true;
   weather.windSpeedMps = value[0] * WEATHER_WIND_SPEED_SCALE;
   weather.windDirectionDeg = value[1] * WEATHER_WIND_DIRECTION_SCALE;
   weather.rainfallMm = value[2] * WEATHER_RAINFALL_SCALE;
@@ -276,6 +279,7 @@ void publishTelemetry() {
   JsonObject weatherJson = doc.createNestedObject("weather");
   weatherJson["enabled"] = weather.enabled;
   weatherJson["online"] = weather.online;
+  weatherJson["dataValid"] = weather.dataValid;
   weatherJson["windSpeedMps"] = weather.windSpeedMps;
   weatherJson["windDirectionDeg"] = weather.windDirectionDeg;
   weatherJson["rainfallMm"] = weather.rainfallMm;
@@ -343,6 +347,7 @@ void onMqttMessage(char* topic, byte* bytes, unsigned int length) {
 
 void connectWifi() {
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);  // 局域网 MQTT 及时上报，避免 WiFi 省电造成的短时延迟。
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) delay(500);
 }
