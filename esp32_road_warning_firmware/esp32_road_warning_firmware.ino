@@ -19,6 +19,7 @@ HardwareSerial WeatherSerial(2);
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+constexpr bool WEATHER_MODULE_AVAILABLE = ENABLE_WEATHER;
 
 struct Ld06State {
   bool enabled = ENABLE_LD06;
@@ -318,8 +319,13 @@ void onMqttMessage(char* topic, byte* bytes, unsigned int length) {
     water.enabled = doc["value"] | false;
     publishStatus(cmd);
   } else if (strcmp(cmd, "setWeatherEnabled") == 0) {
-    weather.enabled = doc["value"] | false;
-    publishStatus(cmd);
+    if (!WEATHER_MODULE_AVAILABLE) {
+      weather.enabled = false;
+      publishStatus(cmd, false, "weather station is not installed on this tower");
+    } else {
+      weather.enabled = doc["value"] | false;
+      publishStatus(cmd);
+    }
   } else if (strcmp(cmd, "setWaterThresholds") == 0) {
     int caution = doc["caution"] | water.caution;
     int warning = doc["warning"] | water.warning;
