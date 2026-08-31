@@ -735,8 +735,10 @@
         <input v-model.trim="brokerUrl" :disabled="connected || connecting">
       </div>
       <div class="field">
-        <label>设备 ID</label>
-        <input v-model.trim="deviceId" :disabled="connected || connecting">
+        <label>控制对象</label>
+        <select v-model="deviceId" :disabled="connecting" @change="selectTower">
+          <option v-for="tower in towers" :key="tower.id" :value="tower.id">{{ tower.name }}（{{ tower.id }}）</option>
+        </select>
       </div>
       <div class="field">
         <label>上报间隔 ms</label>
@@ -749,27 +751,27 @@
     <section class="panel global-weather">
       <div class="section-head">
         <div class="section-title">
-          <span>全局共享模块</span>
+          <span>灯塔一共享模块</span>
           <strong>气象站</strong>
         </div>
-        <span class="level" :class="weatherStatusClass">{{ weatherStatusLabel }}</span>
+        <span class="level" :class="weatherStatusClassFor(towers[0])">{{ weatherStatusLabelFor(towers[0]) }}</span>
       </div>
       <div class="weather-grid">
         <div class="weather-cell" v-for="item in visibleWeatherItems" :key="item.key">
           <span>{{ item.label }}</span>
-          <strong>{{ weatherText(item.key) }}</strong>
+          <strong>{{ weatherTextFor(towers[0], item.key) }}</strong>
         </div>
       </div>
     </section>
 
     <main class="site-layout">
-      <section class="panel site-panel">
+      <section class="panel site-panel" v-for="tower in towers" :key="tower.id">
         <div class="site-head">
           <div class="site-title">
             <span>当前实测设备</span>
-            <strong>灯塔总监测站</strong>
+            <strong>{{ tower.name }}</strong>
           </div>
-          <span class="level" :class="levelClass(finalLevel)">{{ finalLevel }}</span>
+          <span class="level" :class="levelClass(towerFinalLevel(tower))">{{ towerFinalLevel(tower) }}</span>
         </div>
 
         <div class="site-grid">
@@ -777,19 +779,19 @@
             <h2>综合告警</h2>
             <div class="metric">
               <span>最终等级</span>
-              <strong><span class="level" :class="levelClass(finalLevel)">{{ finalLevel }}</span></strong>
+              <strong><span class="level" :class="levelClass(towerFinalLevel(tower))">{{ towerFinalLevel(tower) }}</span></strong>
             </div>
             <div class="metric">
               <span>来源</span>
-              <strong>{{ alarmSources }}</strong>
+              <strong>{{ tower.telemetry?.alarm?.sources || "-" }}</strong>
             </div>
             <div class="metric">
               <span>灯光模式</span>
-              <strong>{{ telemetry?.alarm?.pattern || "-" }}</strong>
+              <strong>{{ tower.telemetry?.alarm?.pattern || "-" }}</strong>
             </div>
             <div class="metric">
               <span>最近更新</span>
-              <strong>{{ lastTelemetryTime || "-" }}</strong>
+              <strong>{{ tower.lastTelemetryTime || "-" }}</strong>
             </div>
           </section>
 
@@ -797,23 +799,23 @@
             <h2>人车接近</h2>
             <div class="metric">
               <span>启用</span>
-              <strong>{{ boolText(telemetry?.ld06?.enabled) }}</strong>
+              <strong>{{ boolText(tower.telemetry?.ld06?.enabled) }}</strong>
             </div>
             <div class="metric">
               <span>在线</span>
-              <strong>{{ boolText(telemetry?.ld06?.online) }}</strong>
+              <strong>{{ boolText(tower.telemetry?.ld06?.online) }}</strong>
             </div>
             <div class="metric">
               <span>最近距离</span>
-              <strong>{{ distanceText(telemetry?.ld06?.nearestDistanceMm) }}</strong>
+              <strong>{{ distanceText(tower.telemetry?.ld06?.nearestDistanceMm) }}</strong>
             </div>
             <div class="metric">
               <span>等级</span>
-              <strong><span class="level" :class="levelClass(telemetry?.ld06?.level)">{{ telemetry?.ld06?.level || "-" }}</span></strong>
+              <strong><span class="level" :class="levelClass(tower.telemetry?.ld06?.level)">{{ tower.telemetry?.ld06?.level || "-" }}</span></strong>
             </div>
             <div class="metric">
               <span>CRC 正确 / 错误</span>
-              <strong>{{ telemetry?.ld06?.crcOk ?? "-" }} / {{ telemetry?.ld06?.crcErr ?? "-" }}</strong>
+              <strong>{{ tower.telemetry?.ld06?.crcOk ?? "-" }} / {{ tower.telemetry?.ld06?.crcErr ?? "-" }}</strong>
             </div>
           </section>
 
@@ -821,30 +823,30 @@
             <h2>积水检查</h2>
             <div class="metric">
               <span>启用</span>
-              <strong>{{ boolText(telemetry?.water?.enabled) }}</strong>
+              <strong>{{ boolText(tower.telemetry?.water?.enabled) }}</strong>
             </div>
             <div class="metric">
               <span>ADC</span>
-              <strong>{{ telemetry?.water?.adc ?? "-" }}</strong>
+              <strong>{{ tower.telemetry?.water?.adc ?? "-" }}</strong>
             </div>
             <div class="metric">
               <span>估算浸水</span>
-              <strong>{{ percentText(telemetry?.water?.percent) }}</strong>
+              <strong>{{ percentText(tower.telemetry?.water?.percent) }}</strong>
             </div>
             <div class="water-bar">
-              <div class="water-fill" :style="{ width: waterPercentWidth }"></div>
+              <div class="water-fill" :style="{ width: towerWaterPercentWidth(tower) }"></div>
             </div>
             <div class="metric">
               <span>等级</span>
-              <strong><span class="level" :class="levelClass(telemetry?.water?.level)">{{ telemetry?.water?.level || "-" }}</span></strong>
+              <strong><span class="level" :class="levelClass(tower.telemetry?.water?.level)">{{ tower.telemetry?.water?.level || "-" }}</span></strong>
             </div>
             <div class="metric">
               <span>已标定</span>
-              <strong>{{ boolText(telemetry?.water?.calibrated) }}</strong>
+              <strong>{{ boolText(tower.telemetry?.water?.calibrated) }}</strong>
             </div>
             <div class="metric">
               <span>dry / wet</span>
-              <strong>{{ telemetry?.water?.dryAdc ?? "-" }} / {{ telemetry?.water?.wetAdc ?? "-" }}</strong>
+              <strong>{{ tower.telemetry?.water?.dryAdc ?? "-" }} / {{ tower.telemetry?.water?.wetAdc ?? "-" }}</strong>
             </div>
           </section>
 
@@ -852,19 +854,19 @@
             <h2>网络状态</h2>
             <div class="metric">
               <span>Wi-Fi RSSI</span>
-              <strong>{{ rssiText }}</strong>
+              <strong>{{ towerRssiText(tower) }}</strong>
             </div>
             <div class="metric">
               <span>运行时间</span>
-              <strong>{{ uptimeText }}</strong>
+              <strong>{{ uptimeTextFrom(tower.telemetry?.uptimeMs) }}</strong>
             </div>
             <div class="metric">
               <span>遥测主题</span>
-              <strong>{{ telemetryTopic }}</strong>
+              <strong>{{ telemetryTopicFor(tower.id) }}</strong>
             </div>
             <div class="metric">
               <span>命令主题</span>
-              <strong>{{ commandTopic }}</strong>
+              <strong>{{ commandTopicFor(tower.id) }}</strong>
             </div>
           </section>
         </div>
@@ -1089,11 +1091,15 @@
           <span>积水检查</span>
           <input type="checkbox" v-model="waterEnabled" @change="setWaterEnabled" :disabled="!connected">
         </div>
-        <div class="toggle-row">
+        <div class="toggle-row" v-if="selectedTowerHasWeather">
           <span>气象站读取</span>
           <input type="checkbox" v-model="weatherEnabled" @change="setWeatherEnabled" :disabled="!connected">
         </div>
-        <div class="switch-grid">
+        <div class="toggle-row" v-else>
+          <span>气象站读取</span>
+          <strong>灯塔二未配置</strong>
+        </div>
+        <div class="switch-grid" v-if="selectedTowerHasWeather">
           <div class="toggle-row" v-for="item in weatherPlaceholders" :key="item.key">
             <span>{{ item.label }}</span>
             <input type="checkbox" v-model="weatherVisible[item.key]">
@@ -1144,6 +1150,24 @@
           return {
             brokerUrl: `ws://${pageHost}:9001`,
             deviceId: "road-warning-001",
+            towers: [
+              {
+                id: "road-warning-001",
+                name: "灯塔一",
+                hasWeather: true,
+                telemetry: null,
+                latestStatus: null,
+                lastTelemetryTime: ""
+              },
+              {
+                id: "road-warning-002",
+                name: "灯塔二",
+                hasWeather: false,
+                telemetry: null,
+                latestStatus: null,
+                lastTelemetryTime: ""
+              }
+            ],
             connected: false,
             connecting: false,
             errorMessage: "",
@@ -1211,13 +1235,13 @@
         },
         computed: {
           telemetryTopic() {
-            return `road-warning/${this.deviceId}/telemetry`;
+            return this.telemetryTopicFor(this.deviceId);
           },
           statusTopic() {
-            return `road-warning/${this.deviceId}/status`;
+            return this.statusTopicFor(this.deviceId);
           },
           commandTopic() {
-            return `road-warning/${this.deviceId}/cmd`;
+            return this.commandTopicFor(this.deviceId);
           },
           connectionLabel() {
             if (this.connected) return "已连接";
@@ -1408,9 +1432,79 @@
             if (weather?.enabled === false || this.weatherEnabled === false) return "";
             if (weather?.online && weather?.dataValid) return "safe";
             return "caution";
+          },
+          selectedTowerHasWeather() {
+            return this.towerById(this.deviceId)?.hasWeather === true;
           }
         },
         methods: {
+          towerById(id) {
+            return this.towers.find((tower) => tower.id === id) || null;
+          },
+          telemetryTopicFor(id) {
+            return `road-warning/${id}/telemetry`;
+          },
+          statusTopicFor(id) {
+            return `road-warning/${id}/status`;
+          },
+          commandTopicFor(id) {
+            return `road-warning/${id}/cmd`;
+          },
+          towerFinalLevel(tower) {
+            return tower?.telemetry?.alarm?.finalLevel || "-";
+          },
+          towerWaterPercentWidth(tower) {
+            const value = Number(tower?.telemetry?.water?.percent ?? 0);
+            return `${Math.max(0, Math.min(100, value)).toFixed(0)}%`;
+          },
+          towerRssiText(tower) {
+            const rssi = tower?.telemetry?.wifiRssi;
+            return typeof rssi === "number" ? `${rssi} dBm` : "-";
+          },
+          weatherStatusLabelFor(tower) {
+            const weather = tower?.telemetry?.weather;
+            if (!tower?.hasWeather || weather?.enabled === false) return "未启用";
+            if (weather?.online && weather?.dataValid) return "在线";
+            return "待接入";
+          },
+          weatherStatusClassFor(tower) {
+            const label = this.weatherStatusLabelFor(tower);
+            if (label === "在线") return "safe";
+            if (label === "待接入") return "caution";
+            return "";
+          },
+          weatherTextFor(tower, key) {
+            const weather = tower?.telemetry?.weather;
+            if (!tower?.hasWeather || !weather?.enabled) return "未启用";
+            if (!weather.online || !weather.dataValid) return "待接入";
+            const fixed = (value, digits = 1) => typeof value === "number" ? value.toFixed(digits) : "-";
+            if (key === "windSpeed") return `${fixed(weather.windSpeedMps)} m/s`;
+            if (key === "windDirection") return typeof weather.windDirectionDeg === "number" ? `${weather.windDirectionDeg}°` : "-";
+            if (key === "rainfall") return `${fixed(weather.rainfallMm)} mm`;
+            if (key === "illuminance") {
+              if (typeof weather.lightHundredLux === "number") return `${(weather.lightHundredLux * 100).toLocaleString()} lx`;
+              return typeof weather.lightLuxRaw === "number" ? `${weather.lightLuxRaw.toLocaleString()} lx` : "-";
+            }
+            if (key === "temperature") return `${fixed(weather.temperatureC)} °C`;
+            if (key === "humidity") return `${fixed(weather.humidityPercent)}%`;
+            if (key === "pressure") return `${fixed(weather.pressureKpa)} kPa`;
+            return "-";
+          },
+          selectTower() {
+            const tower = this.towerById(this.deviceId);
+            this.telemetry = tower?.telemetry || null;
+            this.latestStatus = tower?.latestStatus || null;
+            this.lastTelemetryTime = tower?.lastTelemetryTime || "";
+            if (typeof tower?.telemetry?.ld06?.enabled === "boolean") {
+              this.proximityEnabled = tower.telemetry.ld06.enabled;
+            }
+            if (typeof tower?.telemetry?.water?.enabled === "boolean") {
+              this.waterEnabled = tower.telemetry.water.enabled;
+            }
+            if (typeof tower?.telemetry?.weather?.enabled === "boolean") {
+              this.weatherEnabled = tower.telemetry.weather.enabled;
+            }
+          },
           dronePositionText(axis) {
             const position = this.dronePosition;
             if (!position || position[axis] == null) return "-";
@@ -1438,14 +1532,14 @@
               this.connected = true;
               this.connecting = false;
               this.errorMessage = "";
-              const topics = [
-                this.telemetryTopic,
-                this.statusTopic
-              ].filter((topic, index, list) => topic && list.indexOf(topic) === index);
+              const topics = this.towers.flatMap((tower) => [
+                this.telemetryTopicFor(tower.id),
+                this.statusTopicFor(tower.id)
+              ]);
               this.client.subscribe(topics, { qos: 0 }, (err) => {
                 if (err) this.errorMessage = `订阅失败：${err.message || err}`;
               });
-              this.publishCommand({ cmd: "getStatus" });
+              this.towers.forEach((tower) => this.publishCommand({ cmd: "getStatus" }, tower.id));
             });
 
             this.client.on("reconnect", () => {
@@ -1490,9 +1584,13 @@
             });
             this.logs = this.logs.slice(0, 60);
 
-            if (topic === this.telemetryTopic && typeof parsed === "object") {
+            const telemetryTower = this.towers.find((tower) => topic === this.telemetryTopicFor(tower.id));
+            if (telemetryTower && typeof parsed === "object") {
+              telemetryTower.telemetry = parsed;
+              telemetryTower.lastTelemetryTime = new Date().toLocaleTimeString();
+              if (telemetryTower.id !== this.deviceId) return;
               this.telemetry = parsed;
-              this.lastTelemetryTime = new Date().toLocaleTimeString();
+              this.lastTelemetryTime = telemetryTower.lastTelemetryTime;
               if (typeof parsed.ld06?.enabled === "boolean") {
                 this.proximityEnabled = parsed.ld06.enabled;
               }
@@ -1507,7 +1605,10 @@
               }
             }
 
-            if (topic === this.statusTopic) {
+            const statusTower = this.towers.find((tower) => topic === this.statusTopicFor(tower.id));
+            if (statusTower) {
+              statusTower.latestStatus = parsed;
+              if (statusTower.id !== this.deviceId) return;
               this.latestStatus = parsed;
               if (typeof parsed?.proximityEnabled === "boolean") {
                 this.proximityEnabled = parsed.proximityEnabled;
@@ -1868,9 +1969,9 @@
               this.crackAnalyzing = false;
             }
           },
-          publishCommand(command) {
+          publishCommand(command, targetDeviceId = this.deviceId) {
             if (!this.client || !this.connected) return;
-            this.client.publish(this.commandTopic, JSON.stringify(command), { qos: 0, retain: false });
+            this.client.publish(this.commandTopicFor(targetDeviceId), JSON.stringify(command), { qos: 0, retain: false });
           },
           applyUploadInterval() {
             this.publishCommand({
