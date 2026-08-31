@@ -7,7 +7,7 @@
 - LD06 人车接近检测；
 - 水位 ADC 采集、标定与风险分级；
 - WS2812 灯带风险颜色显示；
-- RS485 七要素气象站（Modbus RTU）读取；
+- RS485 七要素气象站（Modbus RTU）读取（仅灯塔一）；
 - 接收网页下发的开关、上报间隔与水位标定命令。
 
 ## 重要说明
@@ -33,13 +33,20 @@ MQTT 端口默认是 `1883`，无需改动。
 打开 `config.h`，修改：
 
 ```cpp
-#define LED_COUNT 30
+#define LED_COUNT 60
 #define LED_BRIGHTNESS 80
 ```
 
 - `LED_COUNT` 是灯带实际 WS2812 灯珠数；修改后必须重新烧录。
 - `LED_BRIGHTNESS` 范围是 `0 ~ 255`；建议从 `80 ~ 120` 开始。
 - 灯带接线固定为 `GPIO48 -> DIN`，外接 5V，且灯带 GND 与 ESP32 GND 共地。
+
+## 2.1 两个灯塔的设备配置
+
+- **灯塔一**：直接使用当前 `config.h`。设备 ID 是 `road-warning-001`，默认 60 颗 WS2812，包含 LD06、积水和气象站。
+- **灯塔二**：先备份 `config.h`，再将 `tower_2_config.h` 改名为 `config.h` 后烧录同一个 `.ino` 主程序。设备 ID 是 `road-warning-002`，默认 60 颗 WS2812，只包含 LD06 和积水，气象站已明确关闭。
+
+两块板的设备 ID 必须不同；否则它们会向同一 MQTT 主题上报，网页数据会互相覆盖。
 
 ## 3. 接线
 
