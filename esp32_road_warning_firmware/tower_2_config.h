@@ -1,0 +1,53 @@
+#pragma once
+
+// 灯塔二专用配置：与灯塔一共用同一份 .ino 主程序。
+// 使用时先保留原 config.h 备份，再用本文件替换 config.h 后编译烧录。
+
+#define DEVICE_ID "road-warning-002"
+#define LED_PIN 48
+#define LED_COUNT 60
+#define LED_BRIGHTNESS 80  // 0 ~ 255
+
+#define LD06_RX_PIN 18
+#define LD06_BAUD 230400
+
+#define WATER_ADC_PIN 4
+#define WATER_DIGITAL_PIN 5
+
+// 灯塔二不连接气象站，故不使用 RS485 引脚。
+#define WEATHER_RX_PIN 16
+#define WEATHER_TX_PIN 15
+#define WEATHER_BAUD 9600
+#define WEATHER_SLAVE_ID 1
+
+#define ENABLE_LD06 true
+#define ENABLE_WATER true
+#define ENABLE_WEATHER false
+
+#define MQTT_PORT 1883
+#define MQTT_UPLOAD_INTERVAL_MS 1000UL
+
+#define LD06_CAUTION_MM 2500
+#define LD06_WARNING_MM 1500
+#define LD06_DANGER_MM 800
+
+#define WATER_DRY_ADC 3000
+#define WATER_WET_ADC 1200
+#define WATER_CAUTION_PERCENT 30
+#define WATER_WARNING_PERCENT 60
+#define WATER_DANGER_PERCENT 85
+
+// 与主程序保持定义完整；灯塔二关闭气象站，实际不会轮询这里的参数。
+#define WEATHER_FUNCTION_CODE 0x03
+#define WEATHER_START_REGISTER 0x0000
+#define WEATHER_REGISTER_COUNT 7
+#define WEATHER_WIND_SPEED_SCALE 0.1f
+#define WEATHER_WIND_DIRECTION_SCALE 1.0f
+#define WEATHER_RAINFALL_SCALE 0.1f
+#define WEATHER_LIGHT_SCALE 1.0f
+#define WEATHER_TEMPERATURE_SCALE 0.1f
+#define WEATHER_HUMIDITY_SCALE 0.1f
+#define WEATHER_PRESSURE_SCALE 0.1f
+
+#define WEATHER_POLL_INTERVAL_MS 2000UL
+#define LD06_OFFLINE_TIMEOUT_MS 3000UL
