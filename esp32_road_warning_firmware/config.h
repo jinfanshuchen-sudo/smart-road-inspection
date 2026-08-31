@@ -3,7 +3,7 @@
 // ===== 设备标识与硬件引脚 =====
 #define DEVICE_ID "road-warning-001"
 #define LED_PIN 48
-#define LED_COUNT 30
+#define LED_COUNT 60
 #define LED_BRIGHTNESS 80  // 0 ~ 255；改灯珠数量和默认亮度只改上面两项。
 
 #define LD06_RX_PIN 18
